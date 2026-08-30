@@ -1,0 +1,21 @@
+# Python / Virtual Environments
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# KI-spezifische Modelldateien & Checkpoints
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.onnx
+*.tflite
+checkpoints/
+
+# Daten, Logs & Secrets
+data/
+datasets/
+runs/
+.env
