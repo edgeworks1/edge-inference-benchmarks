@@ -238,5 +238,5 @@ class MobileNetV3Micro2D(nn.Module):
         return self.head(torch.flatten(x, 1))
 
 
-def mobilenet_v3_small_2d(**kwargs: object) -> MobileNetV3Micro2D:
+def mobilenet_v3_micro_2d(**kwargs: object) -> MobileNetV3Micro2D:
     return MobileNetV3Micro2D(**kwargs)

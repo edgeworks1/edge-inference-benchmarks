@@ -1,9 +1,14 @@
 # Python / Virtual Environments
-venv/
 .venv/
+venv/
 env/
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
 
 # KI-spezifische Modelldateien & Checkpoints
 *.pt
@@ -12,10 +17,10 @@ __pycache__/
 *.bin
 *.onnx
 *.tflite
-checkpoints/
+/ml/checkpoints/
 
 # Daten, Logs & Secrets
-data/
+/ml/data/
 datasets/
 runs/
 .env

@@ -1,6 +1,7 @@
 """Load a trained checkpoint and export it to deployment formats.
 
-Change the constants in ``DEPLOYMENT CONFIGURATION`` and run this file.
+Change the constants in ``DEPLOYMENT CONFIGURATION`` and run
+``python -m ble_cs_profiling.export``.
 """
 
 from pathlib import Path
@@ -12,9 +13,9 @@ import numpy as np
 import torch
 from torch import nn
 
-import config as cfg
-from model_registry import build_model
-from quantization import load_features, quantize_full_int8, evaluate_tflite
+from ble_cs_profiling import config as cfg
+from ble_cs_profiling.models import build_model
+from ble_cs_profiling.quantization import evaluate_tflite, load_features, quantize_full_int8
 
 
 # =============================================================================
@@ -33,8 +34,8 @@ def load_checkpoint(path: Path) -> tuple[nn.Module, dict[str, Any]]:
     """Rebuild a model from its metadata and load its trained weights."""
     if not path.is_file():
         raise FileNotFoundError(
-            f"Checkpoint not found: {path}\nRun model_runner.py first or change "
-            "CHECKPOINT_PATH in deployer.py."
+            f"Checkpoint not found: {path}\nRun ble_cs_profiling.train first or change "
+            "CHECKPOINT_PATH in ble_cs_profiling/export.py."
         )
 
     try:

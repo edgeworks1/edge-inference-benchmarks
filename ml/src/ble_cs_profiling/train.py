@@ -1,6 +1,7 @@
 """Generic training and evaluation runner for profiling models.
 
-Change the constants in ``SCRIPT CONFIGURATION`` and run this file directly.
+Change the constants in ``SCRIPT CONFIGURATION`` and run
+``python -m ble_cs_profiling.train``.
 """
 
 import os
@@ -20,8 +21,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-import config as cfg
-from model_registry import build_model
+from ble_cs_profiling import config as cfg
+from ble_cs_profiling.models import build_model
 
 
 # =============================================================================

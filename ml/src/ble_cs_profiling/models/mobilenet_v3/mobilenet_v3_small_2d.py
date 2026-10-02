@@ -6,10 +6,13 @@ positions. Flat inputs from the existing pipeline are reshaped internally.
 """
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Literal, Sequence
 
 import torch
 from torch import nn
+
+
+BlockActivation = Literal["hardswish", "relu"]
 
 
 def _make_divisible(value: float, divisor: int = 8) -> int:
@@ -73,13 +76,22 @@ class InvertedResidualConfig:
 
 
 class InvertedResidual2D(nn.Module):
-    def __init__(self, in_channels: int, config: InvertedResidualConfig) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        config: InvertedResidualConfig,
+        block_activation: BlockActivation = "hardswish",
+    ) -> None:
         super().__init__()
         if config.stride not in (1, 2):
             raise ValueError("stride must be 1 or 2")
 
-        # activation = nn.Hardswish if config.use_hs else nn.ReLU
-        activation = nn.ReLU
+        # "hardswish": Original MobileNetV3 (HardSwish nur in Blöcken mit use_hs).
+        # "relu": ReLU in allen Blöcken, z.B. weil TFLM HardSwish nicht fusen kann.
+        if block_activation == "hardswish":
+            activation = nn.Hardswish if config.use_hs else nn.ReLU
+        else:
+            activation = nn.ReLU
         layers: list[nn.Module] = []
         if config.expanded_channels != in_channels:
             layers.append(
@@ -128,10 +140,13 @@ class MobileNetV3Small2D(nn.Module):
         num_outputs: int = 1,
         width_mult: float = 1.0,
         dropout: float = 0.2,
+        block_activation: BlockActivation = "hardswish",
     ) -> None:
         super().__init__()
         if width_mult <= 0:
             raise ValueError("width_mult must be positive")
+        if block_activation not in ("hardswish", "relu"):
+            raise ValueError("block_activation must be 'hardswish' or 'relu'")
         self.image_height = image_height
         self.image_width = image_width
 
@@ -162,7 +177,7 @@ class MobileNetV3Small2D(nn.Module):
         ]
         current_channels = first_channels
         for config in configs:
-            layers.append(InvertedResidual2D(current_channels, config))
+            layers.append(InvertedResidual2D(current_channels, config, block_activation))
             current_channels = config.out_channels
 
         last_conv_channels = channels(576)

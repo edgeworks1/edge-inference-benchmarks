@@ -1,27 +1,49 @@
 """
 Zentrale Konfigurationsdatei für das Edge AI Profiling Projekt.
+
+Alle Pfade lassen sich per Umgebungsvariable überschreiben (z.B. in Docker/CI):
+
+    BLE_CS_PROJECT_ROOT   Basisordner für data/, outputs/, checkpoints/
+    BLE_CS_DATA_DIR       Datensätze (Parquet)
+    BLE_CS_OUTPUT_DIR     Exportierte Artefakte (ONNX, TFLite, C-Arrays)
+    BLE_CS_CHECKPOINT_DIR Trainierte PyTorch-Checkpoints
 """
+import os
 from pathlib import Path
 
+
 # ============================================================
-# 📂 PFAD-MANAGEMENT (Projektweit relativ aufgelöst)
+# 📂 PFAD-MANAGEMENT (unabhängig vom Startordner)
 # ============================================================
-# Ermittelt den Ordner, in dem config.py liegt, als Ankerpunkt
-CONFIG_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = CONFIG_DIR.parent if CONFIG_DIR.name in ["src", "pipeline"] else CONFIG_DIR
+def _find_project_root() -> Path:
+    """Env-Variable, sonst der nächste Ordner oberhalb dieses Pakets mit pyproject.toml."""
+    if root := os.environ.get("BLE_CS_PROJECT_ROOT"):
+        return Path(root).expanduser().resolve()
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    # Als Wheel installiert (z.B. Docker) gibt es keinen Source-Tree: Env-Variable setzen.
+    return Path.cwd()
+
+
+def _dir_from_env(variable: str, default: Path) -> Path:
+    value = os.environ.get(variable)
+    return Path(value).expanduser().resolve() if value else default
+
+
+PROJECT_ROOT = _find_project_root()
 
 # Daten-Verzeichnisse
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = _dir_from_env("BLE_CS_DATA_DIR", PROJECT_ROOT / "data")
 TRAIN_DATA_PATH = DATA_DIR / "combined_training_reduced.parquet"
 EVAL_DATA_PATH = DATA_DIR / "combined_eval_reduced.parquet"
 
-# Output- & Artefakt-Verzeichnisse (ONNX, TFLite, C-Arrays, CSV-Logs)
-OUTPUT_DIR = PROJECT_ROOT / "outputs"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+# Output- & Artefakt-Verzeichnisse (ONNX, TFLite, C-Arrays, CSV-Logs).
+# Ordner werden erst beim Schreiben angelegt, nicht schon beim Import.
+OUTPUT_DIR = _dir_from_env("BLE_CS_OUTPUT_DIR", PROJECT_ROOT / "outputs")
 
 # Trainierte PyTorch-Checkpoints als Schnittstelle zwischen Training und Export
-CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"
-CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+CHECKPOINT_DIR = _dir_from_env("BLE_CS_CHECKPOINT_DIR", PROJECT_ROOT / "checkpoints")
 
 
 # ============================================================
