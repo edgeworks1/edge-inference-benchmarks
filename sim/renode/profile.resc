@@ -1,0 +1,38 @@
+:name: nRF5340 TFLM Profiler
+:description: Simuliert nRF5340 M33 mit vergrößertem RAM/Flash
+
+$name?="nrf5340dk_nrf5340_cpuapp"
+$repl?=@cortex_m33_profiler.repl
+$bin?=@build/zephyr/zephyr.elf
+
+using sysbus
+mach create $name
+machine LoadPlatformDescription $repl
+
+# Core Performance auf 128 MHz skalieren
+cpu0 PerformanceInMips 128
+
+# UART-Ausgabe direkt an Konsole/Terminal binden
+showAnalyzer uart0
+
+# Panic Hook fängt Abstürze sauber ab
+set osPanicHook
+"""
+self.ErrorLog("OS Panicked / Kernel Fault!")
+"""
+cpu0 AddSymbolHook "z_fatal_error" $osPanicHook
+
+macro reset
+"""
+    sysbus LoadELF $bin
+    cpu0 VectorTableOffset `sysbus GetSymbolAddress "_vector_table"`
+    cpu0 EnableZephyrMode
+    
+    # Erzeugt Profiling-Trace für Flamegraphs
+    cpu0 EnableProfilerCollapsedStack @tflm_trace.dump true 62914560 maximumNestedContexts=10
+"""
+
+runMacro $reset
+
+echo "Starte Simulation..."
+start

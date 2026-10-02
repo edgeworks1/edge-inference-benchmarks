@@ -1,0 +1,37 @@
+// cortex_m33_profiler.repl (nRF5340 Application Core mit 16MB Flash / 8MB RAM)
+
+cpu0: CPU.CortexM @ sysbus
+    cpuType: "cortex-m33"
+    nvic: nvic0
+
+nvic0: IRQControllers.NVIC @ {
+    sysbus new Bus.BusPointRegistration { address: 0xe000e000; cpu: cpu0 }
+}
+    -> cpu0@0
+    systickFrequency: 32768
+
+// 16 MB virtueller Flash (Original nRF5340: 0x100000 = 1 MB)
+flash0: Memory.MappedMemory @ sysbus 0x00000000
+    size: 0x01000000
+
+// 8 MB virtueller SRAM (Original nRF5340: 0x80000 = 512 KB)
+sram0: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x00800000
+
+// Nordic System Clocks (zwingend nötig für Zephyr Boot)
+clock: Miscellaneous.NRF_CLOCK @ sysbus 0x50005000
+    -> nvic0@5
+
+// Nordic UART (zwingend nötig für printk / printf)
+uart0: UART.NRF52840_UART @ sysbus 0x50008000
+    easyDMA: true
+    -> nvic0@8
+
+// Timer für Zephyr Kernel Ticks
+rtc0: Timers.NRF52840_RTC @ sysbus 0x50014000
+    numberOfEvents: 4
+    -> nvic0@20
+
+// DWT für präzise Zykluszählung
+dwt: Miscellaneous.DWT @ sysbus 0xE0001000
+    frequency: 128000000
