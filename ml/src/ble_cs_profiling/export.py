@@ -1,15 +1,14 @@
 """Load a trained checkpoint and export it to deployment formats.
 
-Change the constants in ``DEPLOYMENT CONFIGURATION`` and run
-``python -m ble_cs_profiling.export``.
+Entry point: ``ble-cs export <checkpoint>`` (see ``ble-cs export --help``).
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import traceback
-
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 
@@ -18,26 +17,22 @@ from ble_cs_profiling.models import build_model
 from ble_cs_profiling.quantization import evaluate_tflite, load_features, quantize_full_int8
 
 
-# =============================================================================
-# DEPLOYMENT CONFIGURATION
-# =============================================================================
-CHECKPOINT_PATH = cfg.CHECKPOINT_DIR / "mobilenet" / "fp32_full.pt"
-EXPORT_ONNX = True  # Export FP32 and statically quantized INT8 ONNX
-EXPORT_TFLITE = True
-ONNX_OPSET_VERSION = 13
-EXPORT_FULL_INT8 = True  # Static PTQ to integer-only TFLite
-CALIBRATION_SAMPLES = 1000
-CALIBRATION_SEED = 42
+@dataclass(frozen=True)
+class ExportOptions:
+    onnx: bool = True  # FP32 + statically quantized INT8 ONNX
+    tflite: bool = True  # FP32 + full INT8 TFLite (integer-only incl. I/O for TFLM)
+    onnx_opset: int = 13
+    evaluate: bool = True  # MAE of both TFLite artifacts on the eval set
 
 
 def load_checkpoint(path: Path) -> tuple[nn.Module, dict[str, Any]]:
     """Rebuild a model from its metadata and load its trained weights."""
     if not path.is_file():
         raise FileNotFoundError(
-            f"Checkpoint not found: {path}\nRun ble_cs_profiling.train first or change "
-            "CHECKPOINT_PATH in ble_cs_profiling/export.py."
+            f"Checkpoint not found: {path}\nRun `ble-cs train` first."
         )
-
+    
+    # Export vermeidet GPU-abhängige Artefakte, daher immer auf CPU laden
     try:
         checkpoint = torch.load(path, map_location="cpu", weights_only=True)
     except TypeError:
@@ -58,6 +53,7 @@ def export_onnx(
     model: nn.Module,
     sample_input: torch.Tensor,
     output_path: Path,
+    opset_version: int = 13,
 ) -> Path:
     """Export with legacy opset support and decomposed HardSwish at opset 13."""
     # The TorchScript exporter supports opset 13 directly, including lowering
@@ -68,7 +64,7 @@ def export_onnx(
         f=str(output_path),
         dynamo=False,
         export_params=True,
-        opset_version=ONNX_OPSET_VERSION,
+        opset_version=opset_version,
         input_names=["iq_input"],
         output_names=["distance_m"],
         dynamic_axes={"iq_input": {0: "batch"}, "distance_m": {0: "batch"}},
@@ -79,17 +75,16 @@ def export_onnx(
 
 
 def load_calibration_inputs(
-    checkpoint: dict[str, Any], input_shape: tuple[int, ...],
+    checkpoint: dict[str, Any],
+    input_shape: tuple[int, ...],
 ) -> np.ndarray:
-    """Select reproducible training samples for both deployment formats."""
-    if CALIBRATION_SAMPLES < 1:
-        raise ValueError("CALIBRATION_SAMPLES must be positive")
+    """Select CALIBRATION_SAMPLES reproducible training samples for all deployment formats."""
     feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
     training_inputs = load_features(cfg.TRAIN_DATA_PATH, feature_names)
     if len(training_inputs) == 0:
         raise ValueError("Calibration training data must be nonempty")
-    indices = np.random.default_rng(CALIBRATION_SEED).choice(
-        len(training_inputs), min(CALIBRATION_SAMPLES, len(training_inputs)), replace=False,
+    indices = np.random.default_rng(cfg.SEED).choice(
+        len(training_inputs), min(cfg.CALIBRATION_SAMPLES, len(training_inputs)), replace=False,
     )
     return training_inputs[indices].reshape((-1, *input_shape[1:]))
 
@@ -160,71 +155,66 @@ def check_output(
 ) -> None:
     """Compare TFLite output numerically with its PyTorch source model."""
     with torch.inference_mode():
-        torch_output = model(*sample_input).cpu().numpy()
+        torch_output = model(*sample_input).cpu().numpy() # Das * ist notwendig, um das Tupel zu entpacken und die einzelnen Tensoren als separate Argumente an das Modell zu übergeben.
     edge_output = np.asarray(edge_model(*sample_input))
     max_abs_diff = float(np.max(np.abs(torch_output - edge_output)))
     print(f"TFLite max. absolute Abweichung zu PyTorch: {max_abs_diff:.6g}")
 
 
-def main() -> None:
-    model, checkpoint = load_checkpoint(CHECKPOINT_PATH)
+def export_checkpoint(
+    checkpoint_path: Path,
+    output_dir: Path,
+    options: ExportOptions | None = None,
+) -> dict[str, Path]:
+    """Export one checkpoint to all requested formats; returns ``{artifact: path}``."""
+    options = options or ExportOptions()
+    if not (options.onnx or options.tflite):
+        raise ValueError("Nothing to export: enable onnx and/or tflite")
+
+    model, checkpoint = load_checkpoint(checkpoint_path)
     model_name = checkpoint["model_name"]
     input_shape = tuple(checkpoint.get("input_shape", [1, cfg.NUM_FEATURES]))
+    if options.tflite and input_shape[0] != 1:
+        raise ValueError("TFLite PTQ/evaluation requires export batch size 1")
     sample_input = (torch.randn(*input_shape, dtype=torch.float32),)
 
-    cfg.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Checkpoint geladen: {CHECKPOINT_PATH}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Checkpoint geladen: {checkpoint_path} ({model_name})")
     if "eval_mae" in checkpoint:
         print(f"Gespeicherter Eval-MAE: {checkpoint['eval_mae']:.4f} m")
 
-    if EXPORT_ONNX:
-        try:
-            onnx_path = export_onnx(
-                model,
-                sample_input[0],
-                cfg.OUTPUT_DIR / f"{model_name}_fp32.onnx",
-            )
-            quantize_onnx_int8(
-                onnx_path, cfg.OUTPUT_DIR / f"{model_name}_int8.onnx",
-                load_calibration_inputs(checkpoint, input_shape),
-            )
-        except ModuleNotFoundError as error:
-            print(
-                f"ONNX-Export/Quantisierung unvollständig: Python-Paket '{error.name}' fehlt. "
-                "Installiere 'onnx', 'onnxscript' und 'onnxruntime' in der aktiven Umgebung."
-            )
-        except Exception as error:
-            print(f"ONNX-Export/Quantisierung fehlgeschlagen: {type(error).__name__}: {error}")
-            traceback.print_exc()
+    # Wird für Quantisierung benötigt; einmal laden, für ONNX und TFLite wiederverwenden
+    calibration_inputs = load_calibration_inputs(checkpoint, input_shape)
 
-    if EXPORT_TFLITE or EXPORT_FULL_INT8:
-        try:
-            fp32_path, edge_model = export_tflite(
-                model,
-                sample_input,
-                cfg.OUTPUT_DIR / f"{model_name}_fp32.tflite",
+    artifacts: dict[str, Path] = {}
+    if options.onnx:
+        artifacts["fp32_onnx"] = export_onnx(
+            model, sample_input[0], output_dir / f"{model_name}_fp32.onnx", options.onnx_opset,
+        )
+        artifacts["int8_onnx"] = quantize_onnx_int8(
+            artifacts["fp32_onnx"], output_dir / f"{model_name}_int8.onnx", calibration_inputs,
+        )
+
+    if options.tflite:
+        fp32_path, edge_model = export_tflite(
+            model, sample_input, output_dir / f"{model_name}_fp32.tflite",
+        )
+        check_output(model, sample_input, edge_model)
+        artifacts["fp32"] = fp32_path
+
+        artifacts["full_int8"] = quantize_full_int8(
+            fp32_path, output_dir / f"{model_name}_full_int8.tflite", calibration_inputs,
+        )
+
+        if options.evaluate:
+            feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
+            target_name = checkpoint.get("target", cfg.TARGET)
+            eval_inputs = load_features(cfg.EVAL_DATA_PATH, feature_names).reshape(
+                (-1, *input_shape[1:])
             )
-            check_output(model, sample_input, edge_model)
-            if EXPORT_FULL_INT8:
-                import pandas as pd
+            targets = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[target_name])[target_name].to_numpy()
+            for path in artifacts.values():
+                if path.suffix == ".tflite":
+                    evaluate_tflite(path, eval_inputs, targets)
 
-                feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
-                target_name = checkpoint.get("target", cfg.TARGET)
-                if input_shape[0] != 1:
-                    raise ValueError("TFLite PTQ/evaluation requires export batch size 1")
-                calibration_inputs = load_calibration_inputs(checkpoint, input_shape)
-                int8_path = quantize_full_int8(
-                    fp32_path, cfg.OUTPUT_DIR / f"{model_name}_full_int8.tflite", calibration_inputs,
-                )
-                eval_inputs = load_features(cfg.EVAL_DATA_PATH, feature_names).reshape(
-                    (-1, *input_shape[1:])
-                )
-                targets = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[target_name])[target_name].to_numpy()
-                evaluate_tflite(fp32_path, eval_inputs, targets)
-                evaluate_tflite(int8_path, eval_inputs, targets)
-        except Exception as error:
-            raise RuntimeError(f"TFLite-Export/Quantisierung/Auswertung fehlgeschlagen: {error}") from error
-
-
-if __name__ == "__main__":
-    main()
+    return artifacts

@@ -24,3 +24,8 @@ dist/
 datasets/
 runs/
 .env
+
+# Drafts, Notizen & To-Do-Listen
+Pipeline_verbesserungen.txt
+To Do.md
+COMMANDS.md

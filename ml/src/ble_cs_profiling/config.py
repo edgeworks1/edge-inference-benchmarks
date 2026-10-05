@@ -65,3 +65,19 @@ IQ_REMOTE_Q = [f"Q_remote_{i}" for i in VALID_IQ_INDICES]
 # Gesamte Feature-Liste für Training & Inferenz (300 Dimensionen: 75 * 4)
 FEATURES_RAW_IQ_ALL = IQ_LOCAL_I + IQ_LOCAL_Q + IQ_REMOTE_I + IQ_REMOTE_Q
 NUM_FEATURES = len(FEATURES_RAW_IQ_ALL)
+
+
+# ============================================================
+# 🏋️ FESTE TRAININGS-EINSTELLUNGEN
+# ============================================================
+# Absichtlich nicht per CLI änderbar: Training soll nur schnell und reproduzierbar
+# sein (2x trainieren = 2x gleiches Ergebnis), der Fokus liegt auf dem Deployment.
+SEED = 42
+EPOCHS = 5
+BATCH_SIZE = 256
+LEARNING_RATE = 2e-3
+TRAIN_SAMPLE_RATE = 0.1  # 0.1 = zufällige 10 % der Trainingsdaten
+
+# Repräsentative Trainings-Samples für die INT8-Kalibrierung (ONNX + TFLite),
+# gezogen mit SEED: jeder Export kalibriert auf exakt denselben Daten.
+CALIBRATION_SAMPLES = 1000

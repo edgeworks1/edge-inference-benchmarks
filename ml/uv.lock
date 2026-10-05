@@ -144,6 +144,7 @@ dependencies = [
     { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-16-ble-cs-profiling-cpu') or (extra == 'extra-16-ble-cs-profiling-cpu' and extra == 'extra-16-ble-cs-profiling-cu130')" },
     { name = "torch", version = "2.12.1+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-16-ble-cs-profiling-cu130'" },
     { name = "torchao" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -182,6 +183,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'cpu'", specifier = "==2.12.1", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "ble-cs-profiling", extra = "cpu" } },
     { name = "torch", marker = "extra == 'cu130'", specifier = "==2.12.1", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "ble-cs-profiling", extra = "cu130" } },
     { name = "torchao", specifier = ">=0.17" },
+    { name = "typer", specifier = ">=0.27" },
 ]
 provides-extras = ["cpu", "cu130"]
 

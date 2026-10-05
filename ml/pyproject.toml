@@ -27,7 +27,13 @@ dependencies = [
     "pandas>=3.0",
     "pyarrow>=25.0",
     "scikit-learn>=1.9",
+
+    # --- CLI ---
+    "typer>=0.27",
 ]
+
+[project.scripts]
+ble-cs = "ble_cs_profiling.cli:app"
 
 [project.optional-dependencies]
 # Exactly one of them must be chosen: `uv sync --extra cu130` (local GPU) or `--extra cpu` (CI/Docker).
