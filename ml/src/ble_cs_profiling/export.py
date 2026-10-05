@@ -55,9 +55,14 @@ def export_onnx(
     output_path: Path,
     opset_version: int = 13,
 ) -> Path:
-    """Export with legacy opset support and decomposed HardSwish at opset 13."""
-    # The TorchScript exporter supports opset 13 directly, including lowering
-    # HardSwish to HardSigmoid + Mul for older deployment runtimes.
+    """Export FP32 ONNX for the STM32N6 Neural-ART NPU (ST Edge AI).
+
+    opset 13 + legacy TorchScript exporter on purpose: ONNX ``HardSwish`` only
+    exists from opset 14, at opset 13 it is lowered to HardSigmoid + Mul. The ST
+    toolchain used initially rejected ONNX HardSwish for the NPU (TFLite was fine).
+    ST Edge AI 4.0 docs now list HardSwish as HW-mapped -> re-check, see
+    docs/onnx_export_stm32n6.md.
+    """
     torch.onnx.export(
         model,
         (sample_input,),
