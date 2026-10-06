@@ -1,0 +1,15 @@
+# Allowlist: erst alles ignorieren, dann nur freigeben, was das Image braucht.
+# Neue Dateien/Ordner (Daten, Secrets, venv ...) landen so nie versehentlich im Build.
+*
+
+# Abhängigkeiten: das Image baut seine Umgebung frisch aus dem Lockfile
+!pyproject.toml
+!uv.lock
+!.python-version
+
+# Code
+!src/
+
+# ... aber keine Python-Caches aus src/
+**/__pycache__
+**/*.pyc

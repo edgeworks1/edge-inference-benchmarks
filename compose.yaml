@@ -1,0 +1,40 @@
+# Startparameter der Pipeline-Container an einer Stelle.
+#   docker compose build                               # Image bauen
+#   docker compose run --rm ml train -m edge_bench_mlp # ble-cs <befehl> im Container (CPU)
+#   docker compose run --rm ml-gpu train -m ...       # dasselbe mit GPU
+services:
+  ml:
+    build:
+      context: ./ml
+      args:
+        TORCH_VARIANT: cpu
+    image: ble-cs:cpu
+    volumes:
+      # create_host_path: false -> fehlt der Ordner, bricht Compose ab,
+      # statt ihn still als root anzulegen (dann dürfte der User app nicht hineinschreiben)
+      - type: bind
+        source: ./ml/data
+        target: /app/data
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./ml/checkpoints
+        target: /app/checkpoints
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./ml/outputs
+        target: /app/outputs
+        bind:
+          create_host_path: false
+
+  # Wie `ml`, aber mit CUDA-torch und GPU-Zugriff (lokales Training).
+  # Braucht auf dem Host das NVIDIA Container Toolkit.
+  ml-gpu:
+    extends: ml
+    build:
+      args:
+        TORCH_VARIANT: cu130
+    image: ble-cs:cu130
+    gpus: all
