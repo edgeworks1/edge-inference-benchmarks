@@ -84,6 +84,25 @@ sudo systemctl restart docker
 Tested with: Ubuntu 24.04 on WSL2, Docker Engine 29.8, NVIDIA Container Toolkit 1.20.1,
 Windows driver 596.08.
 
+### Development: Dev Container (recommended for working on the code)
+
+Requires everything from Option A (including the NVIDIA Container Toolkit, the dev
+container uses the GPU) plus the VS Code extension **Dev Containers**
+(`ms-vscode-remote.remote-containers`).
+
+Open the repository in VS Code → `F1` → **Dev Containers: Reopen in Container**.
+
+- Image: stage `dev` of `ml/Dockerfile` (CUDA torch, plus git, pytest, ruff, ipykernel)
+- The repository is mounted at `/workspace`. The Python environment lives in `/app/.venv`
+  inside the image and is **read-only**. The host's `ml/.venv` is never touched.
+- To add a package: `uv add --no-sync <package>` (updates `pyproject.toml` + `uv.lock`),
+  then **Dev Containers: Rebuild Container**.
+- Shell history and caches are kept in the named volumes `ble-cs-bashhistory` and
+  `ble-cs-cache`, so they survive rebuilds.
+
+Personal extensions (e.g. AI assistants) belong in your VS Code user settings, not in
+`devcontainer.json`: `"dev.containers.defaultExtensions": ["<publisher.extension>"]`.
+
 ### Option B: Local Python
 
 - [uv](https://docs.astral.sh/uv/) ≥ 0.11 (uv installs Python 3.11 itself)

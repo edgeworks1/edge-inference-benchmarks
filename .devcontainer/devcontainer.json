@@ -1,0 +1,54 @@
+// Dev Container für VS Code: "Dev Containers: Reopen in Container"
+// Baut die Stage "dev" aus ml/Dockerfile (GPU-Variante) und hängt das Repo unter /workspace ein.
+{
+  "name": "BLE CS profiling (dev, GPU)",
+
+  // ---- Bauen (entspricht docker build) ----
+  // Pfade sind relativ zu dieser Datei
+  "build": {
+    "dockerfile": "../ml/Dockerfile",
+    "context": "../ml",
+    "target": "dev", // baue bis zur Stage "dev" aber nicht weiter
+    "args": { "TORCH_VARIANT": "cu130" }
+  },
+
+  // ---- Starten (entspricht docker run) ----
+  // Repo unter /workspace, NICHT unter /app: dort liegt die venv aus der base-Stage
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind", // localWorkspaceFolder ist der Pfad auf dem Host (mein PC), target ist der Pfad im Container
+  "workspaceFolder": "/workspace",
+  "runArgs": ["--gpus=all"],
+
+  // Benannte Volumes (von Docker verwaltet, nicht im Repo): überleben "Rebuild Container"
+  "mounts": [
+    "source=ble-cs-bashhistory,target=/commandhistory,type=volume",
+    "source=ble-cs-cache,target=/home/app/.cache,type=volume"
+  ],
+
+  // VS Code arbeitet als User "app" (im Image angelegt, UID 1000 wie dein WSL-User)
+  "remoteUser": "app",
+
+  // ---- VS Code im Container ----
+  "customizations": {
+    "vscode": {
+      // Werden automatisch im Container installiert (nicht auf dem Host)
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "charliermarsh.ruff",
+        "ms-toolsai.jupyter",
+        "vincent-templier.vscode-netron",
+        "mechatroner.rainbow-csv",
+        "lucien-martijn.parquet-visualizer"
+      ],
+      "settings": {
+        // venv aus der base-Stage, nicht die Host-venv unter /workspace/ml/.venv
+        "python.defaultInterpreterPath": "/app/.venv/bin/python",
+        // venv liegt schon im PATH (Dockerfile) -> VS Code muss nicht nochmal die venv aktivieren
+        "python.terminal.activateEnvironment": false,
+        // ruff-Version aus uv.lock benutzen statt der in die ruff-Extension eingebauten eigenen Version, damit es reproduzierbar bleibt
+        "ruff.importStrategy": "fromEnvironment"
+      }
+    }
+  }
+}

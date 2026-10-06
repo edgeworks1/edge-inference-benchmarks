@@ -6,6 +6,7 @@ services:
   ml:
     build:
       context: ./ml
+      target: runtime   # Stage im Dockerfile (nicht die zuletzt definierte, s. dev)
       args:
         TORCH_VARIANT: cpu
     image: ble-cs:cpu
