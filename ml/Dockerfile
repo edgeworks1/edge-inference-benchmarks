@@ -26,20 +26,17 @@ ARG TORCH_VARIANT
 
 # ---- Abhängigkeiten: nur die Lock-Dateien, noch kein Code ----
 COPY pyproject.toml uv.lock .python-version ./
-# Cache-Mount: uvs Download-Cache liegt außerhalb des Images (spart ~2 GB im Layer)
-# und bleibt zwischen Builds erhalten (kein erneuter Download)
+# Cache-Mount: Speichert heruntergeladene .whl auf dem Host (spart ~2 GB erneuter Download
+# im Image, verhindert erneutes Laden aus dem Netz bei Paket-Änderungen).
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-install-project --extra ${TORCH_VARIANT}
 
 # Programme der venv (python, ble-cs) ohne Pfadangabe aufrufbar machen
+# Statt '/app/.venv/bin/ble-cs' reicht jetzt einfach 'ble-cs' oder 'python'.
 ENV PATH="/app/.venv/bin:$PATH"
 
-# ---- User für runtime und dev (aktiviert wird er erst am Ende jeder Stage) ----
-# Echter User (Name + Home) mit derselben UID/GID wie der Host-User:
-# Dateien in eingehängten Ordnern gehören dann dir statt root.
-# Default 1000 = dein WSL-User; in der CI per --build-arg UID=$(id -u) anpassbar.
-# Ist erst hier unten, damit Layer mit den Abhängigkeiten nicht für jeden User
-# neu gebaut werden muss. (also z.b. wenn GitLab baut, müsste jedes nachfolgende Layer neu gebaut werden, weil der User anders ist)
+# Non-Root-User mit Host-UID/GID (verhindert Root-Rechte in Volumes).
+# Hier unten platziert, damit abweichende CI-UIDs den schweren uv-Cache oben nicht invalidieren.
 ARG UID=1000
 ARG GID=1000
 # --shell /bin/bash: Debian-Default ist /bin/sh (dash) -> keine Pfeiltasten-Historie, keine .bashrc
@@ -61,7 +58,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Nicht als root laufen (User wurde in base angelegt)
 USER app
 
-# `docker run <image> <args>` wird zu `ble-cs <args>`; ohne Argumente: Hilfe
+# Kapselt das Image als CLI-Tool: Argumente an "docker run" werden direkt an "ble-cs" durchgereicht (Default: --help).
 ENTRYPOINT ["ble-cs"]
 CMD ["--help"]
 
@@ -78,14 +75,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-# uv soll die venv aus base benutzen, nicht /workspace/ml/.venv (das ist die Host-venv!)
+# uv soll die venv aus base benutzen, nicht /workspace/ml/.venv (das ist die Host-venv)
 # UV_NO_SYNC: die venv gehört root und ist schreibgeschützt -> `uv run` soll nicht
 # synchronisieren. Paketänderungen: `uv add --no-sync <paket>`, dann Container neu bauen.
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
     UV_NO_SYNC=1
 
 # Projekt dort ablegen, wo später der Mount liegt -> die editable Installation zeigt auf
-# /workspace/ml/src. Zur Laufzeit überdeckt der Mount diese Kopie mit deinem echten Repo.
+# /workspace/ml/src. Zur Laufzeit überdeckt der Mount diese Kopie mit dem echten Repo.
 WORKDIR /workspace/ml
 COPY pyproject.toml uv.lock .python-version ./
 COPY src/ src/
@@ -94,9 +91,7 @@ COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --extra ${TORCH_VARIANT}
 
-# Ziele für benannte Volumes (devcontainer.json "mounts"): Shell-Historie und Caches
-# überleben so einen "Rebuild Container". Vorher als app anlegen -> ein neues, leeres
-# Volume übernimmt beim ersten Einhängen Inhalt UND Besitzer aus dem Image (sonst root).
+# Optionaler VS-Code-Komfort: Hält Shell-Historie und Caches über Container-Rebuilds hinweg persistent
 RUN mkdir -p /commandhistory /home/app/.cache \
     && touch /commandhistory/.bash_history \
     && chown -R app:app /commandhistory /home/app/.cache \
