@@ -12,8 +12,15 @@ machine LoadPlatformDescription $repl
 # Core Performance auf 128 MHz skalieren
 cpu0 PerformanceInMips 128
 
-# UART-Ausgabe direkt an Konsole/Terminal binden
-showAnalyzer uart0
+# Sysbus & Clock Warnings stummschalten (Level 3 = Error)
+logLevel 3 sysbus
+logLevel 3 clock
+
+# Stummschalten des undefinierten Peripherie-Bereichs (0x50015000 - 0x50015FFF)
+sysbus SilenceRange <0x50015000 0x1000>
+
+# UART-Ausgabe ins Terminal leiten
+showAnalyzer uart0 Antmicro.Renode.Analyzers.LoggingUartAnalyzer
 
 # Panic Hook fängt Abstürze sauber ab
 set osPanicHook
@@ -27,9 +34,6 @@ macro reset
     sysbus LoadELF $bin
     cpu0 VectorTableOffset `sysbus GetSymbolAddress "_vector_table"`
     cpu0 EnableZephyrMode
-    
-    # Erzeugt Profiling-Trace für Flamegraphs
-    cpu0 EnableProfilerCollapsedStack @tflm_trace.dump true 62914560 maximumNestedContexts=10
 """
 
 runMacro $reset
