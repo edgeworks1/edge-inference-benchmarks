@@ -39,3 +39,39 @@ services:
         TORCH_VARIANT: cu130
     image: ble-cs:cu130
     gpus: all
+
+  # Firmware-Build nRF5340 (Zephyr/NCS). Image = nur Werkzeuge + SDK,
+  # der Firmware-Ordner wird eingehängt -> build/ landet direkt auf dem Host.
+  #   docker compose run --rm fw                    # Default-Build (s. command)
+  #   docker compose run --rm fw west build -t menuconfig   # beliebiger Befehl
+  fw:
+    build:
+      context: ./firmware/nrf5340
+      target: build
+    image: ble-cs-fw:nrf5340
+    volumes:
+      - type: bind
+        source: ./firmware/nrf5340
+        target: /app
+        bind:
+          create_host_path: false
+    # -p auto: pristine, wenn build/ von woanders stammt (z. B. WSL-Build mit anderen Pfaden)
+    command: west build -b nrf5340dk_nrf5340_cpuapp -d build -p auto --no-sysbuild
+
+  # Renode-Simulation des fertigen ELF (firmware/nrf5340/build) mit profile.resc.
+  #   docker compose run --rm fw && docker compose run --rm renode
+  renode:
+    build:
+      context: ./firmware/nrf5340
+      target: renode
+    image: ble-cs-renode:1.16.1
+    volumes:
+      - type: bind
+        source: ./firmware/nrf5340
+        target: /app
+        read_only: true   # Renode liest nur ELF + .resc/.repl
+        bind:
+          create_host_path: false
+    # Monitor-Befehle per -e: Skript laden (startet die Simulation), 10 s Echtzeit laufen lassen, beenden.
+    # Provisorisch – später ersetzt durch renode-test (wartet gezielt auf die UART-Ausgabe).
+    command: renode --disable-xwt --plain --console -e "include @profile.resc; sleep 10; quit"

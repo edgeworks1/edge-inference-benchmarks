@@ -1,0 +1,29 @@
+# West manifest for the nRF5340 firmware.
+# Pins the SDK version and adds modules that NCS does not fetch by default.
+#
+#   west init -l <this directory>   &&   west update
+
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+    - name: zephyrproject
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    # nRF Connect SDK; import: true pulls in zephyr + all NCS modules
+    - name: nrf
+      remote: ncs
+      repo-path: sdk-nrf
+      revision: v2.6.0
+      import: true
+
+    # TFLite Micro is in Zephyr's "optional" submanifest, which NCS does not
+    # import. Revision and path = as in Zephyr's optional.yaml for NCS v2.6.0
+    # (the path ends up in __FILE__ strings, so it changes the binary).
+    - name: tflite-micro
+      remote: zephyrproject
+      revision: 1a34dcab41e7e0e667db72d6a40999c1ec9c510c
+      path: optional/modules/lib/tflite-micro
