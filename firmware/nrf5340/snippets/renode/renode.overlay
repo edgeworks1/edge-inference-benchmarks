@@ -1,0 +1,35 @@
+/*
+ * Variante #1 (Renode): virtuell vergrößerter Speicher, damit auch Modelle laufen,
+ * die nicht in den echten nRF5340 passen (1 MB Flash / 512 KB RAM).
+ * Muss zu renode/cortex_m33_profiler.repl passen (gleiche Adressen und Größen)!
+ */
+
+/ {
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &image_partition;
+	};
+};
+
+/* 1. RAM auf 8 MB erweitern */
+&sram0 {
+	reg = <0x20000000 0x00800000>; /* 8 MB virtueller SRAM */
+};
+
+/* 2. Flash auf 16 MB erweitern und Partitionierung anpassen */
+&flash0 {
+	reg = <0x00000000 0x01000000>; /* 16 MB virtueller Flash */
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Voller Bereich als Binary-Image */
+		image_partition: partition@0 {
+			label = "image-0";
+			reg = <0x00000000 0x01000000>;
+		};
+	};
+};

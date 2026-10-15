@@ -16,7 +16,8 @@
 alignas(16) static uint8_t s_model_sram[MODEL_SRAM_BUFFER_SIZE];
 
 // 3 MB Tensor Arena für Aktivierungen, Intermediate-Tensors und Scratch
-#define TENSOR_ARENA_SIZE (3 * 1024 * 1024)
+// Größe kommt aus Kconfig (CONFIG_APP_TENSOR_ARENA_SIZE), pro Variante unterschiedlich
+#define TENSOR_ARENA_SIZE CONFIG_APP_TENSOR_ARENA_SIZE
 alignas(16) static uint8_t tensor_arena[TENSOR_ARENA_SIZE];
 
 static tflite::RecordingMicroInterpreter* interpreter = nullptr;

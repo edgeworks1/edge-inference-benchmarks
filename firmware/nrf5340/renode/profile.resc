@@ -2,8 +2,10 @@
 :description: Simuliert nRF5340 M33 mit vergrößertem RAM/Flash
 
 $name?="nrf5340dk_nrf5340_cpuapp"
-$repl?=@cortex_m33_profiler.repl
-$bin?=@build/zephyr/zephyr.elf
+# $ORIGIN = Ordner dieses Skripts -> unabhängig vom aktuellen Verzeichnis (ohne @, sonst wörtlich)
+$repl?=$ORIGIN/cortex_m33_profiler.repl
+# ELF der Renode-Variante (west build -d build/renode -S renode)
+$bin?=$ORIGIN/../build/renode/zephyr/zephyr.elf
 
 using sysbus
 mach create $name

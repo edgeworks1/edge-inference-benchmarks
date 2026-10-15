@@ -55,8 +55,9 @@ services:
         target: /app
         bind:
           create_host_path: false
+    # Default: Variante #1 (Renode) -> build/renode. -S renode = Snippet mit großem Speicher.
     # -p auto: pristine, wenn build/ von woanders stammt (z. B. WSL-Build mit anderen Pfaden)
-    command: west build -b nrf5340dk_nrf5340_cpuapp -d build -p auto --no-sysbuild
+    command: west build -b nrf5340dk_nrf5340_cpuapp -d build/renode -S renode -p auto --no-sysbuild
 
   # Renode-Simulation des fertigen ELF (firmware/nrf5340/build) mit profile.resc.
   #   docker compose run --rm fw && docker compose run --rm renode
@@ -74,4 +75,4 @@ services:
           create_host_path: false
     # Monitor-Befehle per -e: Skript laden (startet die Simulation), 10 s Echtzeit laufen lassen, beenden.
     # Provisorisch – später ersetzt durch renode-test (wartet gezielt auf die UART-Ausgabe).
-    command: renode --disable-xwt --plain --console -e "include @profile.resc; sleep 10; quit"
+    command: renode --disable-xwt --plain --console -e "include @renode/profile.resc; sleep 10; quit"

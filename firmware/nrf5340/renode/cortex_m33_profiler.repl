@@ -1,4 +1,5 @@
 // cortex_m33_profiler.repl (nRF5340 Application Core mit 16MB Flash / 8MB RAM)
+// Muss zu snippets/renode/renode.overlay passen (gleiche Adressen und Größen)!
 
 cpu0: CPU.CortexM @ sysbus
     cpuType: "cortex-m33"

@@ -1,0 +1,6 @@
+# Variante #1 (Renode): beim Build mit `-S renode` dazuschalten.
+# Hängt Devicetree-Overlay + Kconfig-Fragment an die normale Konfiguration an.
+name: renode
+append:
+  EXTRA_DTC_OVERLAY_FILE: renode.overlay
+  EXTRA_CONF_FILE: renode.conf

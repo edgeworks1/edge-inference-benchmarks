@@ -11,7 +11,8 @@
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
-#define TENSOR_ARENA_SIZE (3 * 1024 * 1024)
+// Größe kommt aus Kconfig (CONFIG_APP_TENSOR_ARENA_SIZE), pro Variante unterschiedlich
+#define TENSOR_ARENA_SIZE CONFIG_APP_TENSOR_ARENA_SIZE
 
 alignas(16) static uint8_t tensor_arena[TENSOR_ARENA_SIZE];
 
