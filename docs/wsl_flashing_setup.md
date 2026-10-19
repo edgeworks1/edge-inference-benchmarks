@@ -198,6 +198,7 @@ nrfutil --json device program …     # maschinenlesbarer Fortschritt für Skrip
 | DK fehlt in WSL nach Umstecken/Andocken | `attach` lief mit `--busid` → mit `--hardware-id` neu starten (1.3). |
 | Windows-Tools finden das DK nicht | Es hängt gerade an WSL → `usbipd detach --hardware-id 1366:1061`. |
 
-**Offen für Variante #3 (zwei DKs):** Beide J-Links haben dieselbe Hardware-ID `1366:1061`.
-Ob `attach --hardware-id` dann beide anhängt, ist noch nicht getestet. Getrennt werden sie über
-die Seriennummer (`SNR=`) bzw. `/dev/serial/by-id/usb-SEGGER_J-Link_00<SNR>-if02`.
+**Mehrere DKs gleichzeitig (nicht getestet):** Alle J-Links haben dieselbe Hardware-ID `1366:1061`;
+`attach --hardware-id` hängt vermutlich nur eins an. Dann pro DK eine eigene Aufgabe mit `--busid`
+(DK muss dann immer am selben USB-Port stecken). Flashen/UART unterscheiden die DKs bereits über
+die Seriennummer (`SNR=`, `/dev/serial/by-id/usb-SEGGER_J-Link_00<SNR>-if02`).

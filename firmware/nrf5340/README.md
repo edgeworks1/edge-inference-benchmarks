@@ -3,13 +3,12 @@
 Zephyr / nRF Connect SDK v2.6.0 app that runs the INT8 model with TFLite Micro + CMSIS-NN
 and reports per-layer cycle counts (DWT) over UART.
 
-One app, three variants:
+One app, two variants:
 
 | # | Variant | Build | Run |
 |---|---------|-------|-----|
 | 1 | Renode simulation, enlarged memory (8 MB RAM / 16 MB flash) | `make renode` → `build/renode` | `make sim` |
 | 2 | Real nRF5340 DK (1 MB flash / 448 KB app RAM) | `make hil` → `build/hil` | `make flash` + `make console` |
-| 3 | Two DKs doing BLE distance measurement + inference | not wired up yet (`snippets/ble-ranging/`) | – |
 
 Everything builds in Docker (`fw` / `renode` services in the repo's `compose.yaml`), so
 only Docker is needed on the host. Run from the repo root with `make -C firmware/nrf5340 <target>`.
@@ -38,8 +37,6 @@ Then `make flash [SNR=…] [VARIANT=…]` and `make console`. The app core's UAR
 | `west.yml` | Pins NCS v2.6.0 + TFLite Micro (used by the Docker image) |
 | `prj.conf`, `Kconfig` | Shared config; `CONFIG_APP_TENSOR_ARENA_SIZE` (default 128 KiB) |
 | `snippets/renode/` | Variant #1: memory overlay + 3 MB arena (`-S renode`) |
-| `snippets/ble-ranging/` | Variant #3: BLE/DM config (`-S ble-ranging`, untested) |
-| `sysbuild/`, `child_image/`, `Kconfig.sysbuild` | Variant #3: network-core image config. Must stay in the app root (NCS looks for them there); inactive without Bluetooth |
 | `renode/` | Renode platform (`.repl`, must match the renode snippet) and script (`.resc`) |
 | `Dockerfile` | Stages `build` (SDK + toolchain) and `renode` |
 
