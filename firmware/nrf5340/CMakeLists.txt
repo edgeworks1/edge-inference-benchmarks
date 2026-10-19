@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(nrf_dm_2 C CXX)
+project(ble_cs_profiling C CXX)
 
 # ---------------------------------------------------------
 # 1. APPLICATION SOURCES

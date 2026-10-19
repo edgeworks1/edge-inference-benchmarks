@@ -8,3 +8,6 @@ src/data.hpp
 # Local logs
 serial_logs/
 *.log
+
+# Nebenprodukt von `ble-cs codegen samples` (für Jetson/PC, nicht für die Firmware)
+src/*.npy

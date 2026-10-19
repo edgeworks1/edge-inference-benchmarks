@@ -10,9 +10,9 @@ latency), not on squeezing out accuracy.
 ```
 ml/              Python package `ble_cs_profiling`: models, training, INT8 export, C/C++ codegen
   Dockerfile     Image for the ml pipeline (CPU or CUDA variant)
-sim/renode/      Renode platform/script for simulating the nRF5340
+firmware/nrf5340/  Zephyr/NCS inference app: Renode simulation + real DK (see its README)
 docs/            Design notes (e.g. why ONNX is exported with opset 13)
-compose.yaml     Container entry points: `ml` (CPU) and `ml-gpu` (CUDA)
+compose.yaml     Container entry points: `ml` (CPU), `ml-gpu` (CUDA), `fw` (firmware build), `renode`
 ```
 
 ## Prerequisites

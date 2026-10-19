@@ -1,57 +1,55 @@
-.PHONY: build build-pristine flash-starter flash-responder flash-both all
+# Einstiegspunkte für die nRF5340-Firmware.
+# Läuft auf dem Host (WSL); Build und Simulation passieren in Docker
+# (Dienste fw / renode aus compose.yaml im Repo-Root).
+#
+#   make renode   Variante #1 (Renode) bauen     -> build/renode
+#   make sim      Variante #1 bauen + simulieren
+#   make hil      Variante #2 (echtes DK) bauen  -> build/hil
+#   make flash    build/$(VARIANT) aufs DK flashen + reset (nativ in WSL, nrfutil)
+#   make console  UART-Konsole des App-Kerns mitlesen (Ctrl+C beendet)
+#   make clean    alle Build-Ordner löschen
+#
+# Parameter: SNR=<J-Link-Seriennummer> (Default 601er DK), VARIANT=<Build-Ordner> (Default hil)
+#
+# Aufruf aus dem Repo-Root: make -C firmware/nrf5340 <target>
 
 BOARD := nrf5340dk_nrf5340_cpuapp
-WEST := west
 
-BUILD_DIR := build
+# Ordner dieses Makefiles -> funktioniert unabhängig vom aktuellen Verzeichnis
+HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+COMPOSE := docker compose -f $(HERE)../../compose.yaml
 
-# DevKit IDs
-SNR_STARTER := 1050025601
-SNR_RESPONDER := 1050080297
+# Welches DK (Seriennummer auf dem J-Link-Aufkleber / `nrfutil device list`)
+SNR     ?= 1050025601
+VARIANT ?= hil
+# Konsole des App-Kerns = Interface 02 (vcom 1); if00 gehört zum Netzkern.
+# by-id statt ttyACMx: bleibt gleich, egal in welcher Reihenfolge DKs erkannt werden.
+UART    := /dev/serial/by-id/usb-SEGGER_J-Link_00$(SNR)-if02
 
-MERGED_APP := $(BUILD_DIR)/merged.hex
-MERGED_NET := $(BUILD_DIR)/merged_CPUNET.hex
+# -p auto: pristine nur wenn nötig (z. B. anderes Board)
+WEST_BUILD := $(COMPOSE) run --rm fw west build -b $(BOARD) -p auto --no-sysbuild
 
-# ===========================
-# BUILD TARGETS
-# ===========================
+.PHONY: renode sim hil flash console clean
 
-# Fast incremental sysbuild
-build:
-	$(WEST) build -d $(BUILD_DIR)
+renode:
+	$(WEST_BUILD) -d build/renode -S renode
 
-# Clean sysbuild
-build-pristine:
-	$(WEST) build \
-		-b $(BOARD) \
-		-d $(BUILD_DIR) \
-		--pristine \
-		--no-sysbuild
+sim: renode
+	$(COMPOSE) run --rm renode
 
-# ===========================
-# FLASH TARGETS (FAST)
-# ===========================
+hil:
+	$(WEST_BUILD) -d build/hil
 
-flash-starter:
-	$(WEST) flash \
-		-d $(BUILD_DIR) \
-		--dev-id $(SNR_STARTER)
+# Löscht nur die Flash-Bereiche, die das Image belegt (Netzkern-Image bleibt unberührt)
+flash:
+	nrfutil device program --serial-number $(SNR) \
+		--firmware $(HERE)build/$(VARIANT)/zephyr/zephyr.hex \
+		--options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE
+	nrfutil device reset --serial-number $(SNR)
 
-# Flash RESPONDER (APP + NET via sysbuild)
-flash-responder:
-	$(WEST) flash \
-		-d $(BUILD_DIR) \
-		--dev-id $(SNR_RESPONDER)
+console:
+	stty -F $(UART) 115200 raw -echo
+	cat $(UART)
 
-# Beide flashen
-flash-both:
-	$(MAKE) flash-starter
-	$(MAKE) flash-responder
-
-# ===========================
-# FULL PIPELINE
-# ===========================
-
-all:
-	$(MAKE) build
-	$(MAKE) flash-both
+clean:
+	rm -rf $(HERE)build
