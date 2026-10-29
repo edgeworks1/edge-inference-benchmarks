@@ -25,7 +25,9 @@ dist/
 /analytics/*.xlsx
 
 # Daten, Logs & Secrets
-/ml/data/
+/ml/data/*
+# Ausnahme: kleiner öffentlicher Ausschnitt (je 100 Samples, nur IQ-Spalten + Ziel)
+!/ml/data/sample/
 datasets/
 runs/
 .env
