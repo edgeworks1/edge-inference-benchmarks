@@ -18,6 +18,11 @@ dist/
 *.onnx
 *.tflite
 /ml/checkpoints/
+# Alles, was die Pipeline erzeugt (Exporte, Codegen, Samples) – reproduzierbar aus Checkpoint + Daten
+/ml/outputs/
+# Alte Mess-Ergebnisse (Excel/CSV) – künftig als JSON pro Lauf in ml/outputs/
+/analytics/*.csv
+/analytics/*.xlsx
 
 # Daten, Logs & Secrets
 /ml/data/

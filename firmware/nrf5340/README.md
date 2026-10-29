@@ -1,20 +1,29 @@
 # nRF5340 firmware
 
 Zephyr / nRF Connect SDK v2.6.0 app that runs the INT8 model with TFLite Micro + CMSIS-NN
-and reports per-layer cycle counts (DWT) over UART.
+and reports per-layer cycle counts (DWT) over UART. The last line is machine-readable:
+
+```
+RESULT {"model_sha256": "795d8933…", "cycles": 61060, "latency_us": 477, "arena_used_bytes": 1252, "prediction": 1.8906}
+```
+
+`model_sha256` is embedded by `ble-cs codegen`. After a run, `sim` / `measure` call
+[scripts/run_json.py](scripts/run_json.py) (in the `fw` container): it combines this line with
+flash/RAM from `zephyr.elf` into a device-independent `build/<variant>/run.json`, which is piped
+into `ble-cs results record`. That file is the only interface to the ML side.
 
 One app, two variants:
 
 | # | Variant | Build | Run |
 |---|---------|-------|-----|
-| 1 | Renode simulation, enlarged memory (8 MB RAM / 16 MB flash) | `make renode` → `build/renode` | `make sim` |
-| 2 | Real nRF5340 DK (1 MB flash / 448 KB app RAM) | `make hil` → `build/hil` | `make flash` + `make console` |
+| 1 | Renode simulation, enlarged memory (8 MB RAM / 16 MB flash) | `make renode` → `build/renode` | `make sim` (+ record results) |
+| 2 | Real nRF5340 DK (1 MB flash / 448 KB app RAM) | `make hil` → `build/hil` | `make measure` (flash + record results), or `make flash` + `make console` |
 
 Everything builds in Docker (`fw` / `renode` services in the repo's `compose.yaml`), so
 only Docker is needed on the host. Run from the repo root with `make -C firmware/nrf5340 <target>`.
 
-Before the first build, generate the model sources with `ble-cs codegen` (`src/ML_Models/`,
-`src/data.hpp` – gitignored).
+Before the first build, generate the model sources (`src/ML_Models/`, `src/data.hpp`, gitignored):
+`make -C ml all M=<model>` or, for an existing checkpoint, `make -C ml ckpt-to-nrf samples CKPT=checkpoints/<name>.pt`.
 
 ## Flashing from WSL (one-time setup)
 

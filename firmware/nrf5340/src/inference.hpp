@@ -17,6 +17,7 @@ typedef struct {
 bool inference_init(const unsigned char* model_data);
 bool inference_run(const float* raw_features, InferenceResult* result);
 void inference_dump_profiling(void);
+size_t inference_arena_used(void);
 
 #ifdef __cplusplus
 }

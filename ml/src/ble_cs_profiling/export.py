@@ -15,6 +15,7 @@ from torch import nn
 from ble_cs_profiling import config as cfg
 from ble_cs_profiling.models import build_model
 from ble_cs_profiling.quantization import evaluate_tflite, load_features, quantize_full_int8
+from ble_cs_profiling.results import record_export
 
 
 @dataclass(frozen=True)
@@ -171,7 +172,16 @@ def export_checkpoint(
     output_dir: Path,
     options: ExportOptions | None = None,
 ) -> dict[str, Path]:
-    """Export one checkpoint to all requested formats; returns ``{artifact: path}``."""
+    """Export one checkpoint to all requested formats; returns ``{artifact: path}``.
+
+    Layout: ``<output_dir>/<checkpoint>/<precision>/model.{tflite,onnx}``. ``<checkpoint>`` is
+    the checkpoint path inside the checkpoint dir without ``.pt`` (``mobilenet/bad_simd.pt``
+    -> ``mobilenet/bad_simd``), not ``model_name``: variants of one architecture (e.g.
+    pruned50/pruned90) share ``model_name`` and would overwrite each other.
+
+    Precision folders: ``fp32_full`` (float), ``int8_full`` (TFLite: INT8 incl. input/output)
+    and ``int8_qdq`` (ONNX: INT8 weights/activations, but float32 input/output).
+    """
     options = options or ExportOptions()
     if not (options.onnx or options.tflite):
         raise ValueError("Nothing to export: enable onnx and/or tflite")
@@ -183,7 +193,13 @@ def export_checkpoint(
         raise ValueError("TFLite PTQ/evaluation requires export batch size 1")
     sample_input = (torch.randn(*input_shape, dtype=torch.float32),)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        checkpoint_name = checkpoint_path.resolve().relative_to(cfg.CHECKPOINT_DIR).with_suffix("")
+    except ValueError:  # Checkpoint liegt außerhalb des Checkpoint-Ordners
+        checkpoint_name = Path(checkpoint_path.stem)
+    output_dir = output_dir / checkpoint_name
+    for precision in ["fp32_full", *(["int8_qdq"] if options.onnx else []), *(["int8_full"] if options.tflite else [])]:
+        (output_dir / precision).mkdir(parents=True, exist_ok=True)
     print(f"Checkpoint geladen: {checkpoint_path} ({model_name})")
     if "eval_mae" in checkpoint:
         print(f"Gespeicherter Eval-MAE: {checkpoint['eval_mae']:.4f} m")
@@ -192,23 +208,24 @@ def export_checkpoint(
     calibration_inputs = load_calibration_inputs(checkpoint, input_shape)
 
     artifacts: dict[str, Path] = {}
+    maes: dict[Path, float] = {}
     if options.onnx:
         artifacts["fp32_onnx"] = export_onnx(
-            model, sample_input[0], output_dir / f"{model_name}_fp32.onnx", options.onnx_opset,
+            model, sample_input[0], output_dir / "fp32_full" / "model.onnx", options.onnx_opset,
         )
         artifacts["int8_onnx"] = quantize_onnx_int8(
-            artifacts["fp32_onnx"], output_dir / f"{model_name}_int8.onnx", calibration_inputs,
+            artifacts["fp32_onnx"], output_dir / "int8_qdq" / "model.onnx", calibration_inputs,
         )
 
     if options.tflite:
         fp32_path, edge_model = export_tflite(
-            model, sample_input, output_dir / f"{model_name}_fp32.tflite",
+            model, sample_input, output_dir / "fp32_full" / "model.tflite",
         )
         check_output(model, sample_input, edge_model)
         artifacts["fp32"] = fp32_path
 
         artifacts["full_int8"] = quantize_full_int8(
-            fp32_path, output_dir / f"{model_name}_full_int8.tflite", calibration_inputs,
+            fp32_path, output_dir / "int8_full" / "model.tflite", calibration_inputs,
         )
 
         if options.evaluate:
@@ -220,6 +237,7 @@ def export_checkpoint(
             targets = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[target_name])[target_name].to_numpy()
             for path in artifacts.values():
                 if path.suffix == ".tflite":
-                    evaluate_tflite(path, eval_inputs, targets)
+                    maes[path] = evaluate_tflite(path, eval_inputs, targets)
 
+    record_export(output_dir, checkpoint_name.as_posix(), checkpoint, list(artifacts.values()), maes)
     return artifacts

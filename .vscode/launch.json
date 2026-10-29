@@ -22,7 +22,7 @@
             "name": "3 codegen (MLP)",
             "type": "debugpy", "request": "launch",
             "module": "ble_cs_profiling",
-            "args": ["codegen", "model", "outputs/debug/edge_bench_mlp_full_int8.tflite",
+            "args": ["codegen", "model", "outputs/debug/edge_bench_mlp/int8_full/model.tflite",
                      "-o", "outputs/debug/fw"],
             "cwd": "${workspaceFolder}/ml",
             "console": "integratedTerminal", "justMyCode": true

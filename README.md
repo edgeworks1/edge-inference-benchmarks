@@ -1,157 +1,125 @@
 # BLE CS Profiling
 
-Distance-regression models for BLE Channel Sounding (raw IQ samples), quantized to INT8
-and profiled on edge hardware: nRF5340 (Cortex-M33, TFLite Micro), later STM32N6
-(Neural-ART NPU) and Jetson. The focus is on deployment constraints (size, memory,
-latency), not on squeezing out accuracy.
+Reproducible edge-AI pipeline: small regression models estimate distance from raw BLE Channel
+Sounding IQ samples, get quantized to full INT8 and are profiled on a Cortex-M33 (nRF5340,
+TFLite Micro + CMSIS-NN), in simulation (Renode) and on the real board.
+The focus is on deployment constraints (size, memory, latency), not on squeezing out accuracy.
+
+Everything runs in Docker. The host only needs Docker (plus J-Link tools for the real board).
+
+## Pipeline
+
+```
+checkpoint (.pt) ─ export ─▶ fp32_full / int8_full (.tflite)  ─ codegen ─▶ firmware ─▶ Renode / nRF5340 DK
+                             fp32_full / int8_qdq  (.onnx)        (C array)                      │
+                                      │                                                          │
+                                      └──────── size, MAE ──▶ results.json ◀── run.json (cycles, arena, flash, RAM)
+```
+
+`ml/` and `firmware/` don't know each other: the Makefiles copy the generated C sources into the
+firmware and pipe the firmware's `run.json` back into `ble-cs results record`. Another device
+only has to produce the same `run.json`.
+
+## Quickstart
+
+Put the datasets (not part of the repo) into `ml/data/`, then from the repository root:
+
+```bash
+mkdir -p ml/checkpoints ml/outputs           # Compose won't create them (they would be owned by root)
+docker compose build                         # images: ml (CPU), ml-gpu (CUDA), fw (Zephyr SDK), renode
+make -C ml all M=edge_bench_mlp              # train → INT8 TFLite (+ MAE) → C sources into the firmware
+make -C firmware/nrf5340 sim                 # build firmware, run it in Renode, record results
+make -C ml table TARGET=renode               # all results as a Markdown table
+```
+
+No NVIDIA GPU? Add `GPU=0` to train on the CPU. `make -C ml help` lists all steps and parameters.
+On the real board use `make -C firmware/nrf5340 measure` instead of `sim` (build, flash, read UART,
+record), see [Hardware](#hardware).
+
+## Results
+
+nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. MAE on the full eval set (42,242 samples).
+
+| Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `edge_bench_mlp` | 1.399 | 1.395 | 26.0 | 61,060 | 477 | 1.2 | 216.3 | 164.8 |
+| `edge_bench_mlp_pruned50` | 1.411 | 1.411 | 26.0 | 60,979 | 476 | 1.2 | 216.2 | 164.8 |
+| `edge_bench_mlp_pruned90` | 1.627 | 1.626 | 26.0 | 60,973 | 476 | 1.2 | 216.2 | 164.8 |
+| `mobilenet` | 0.506 | 0.510 | 1916.1 | – | – | – | – | – |
+| `mobilenet/bad_simd` | 0.507 | 0.509 | 1908.4 | – | – | – | – | – |
+| `mobilenet/relu` | 0.470 | 0.476 | 1925.5 | – | – | – | – | – |
+| `mobilenet/small` | 0.413 | 0.425 | 345.0 | 19,480,016 | 152,187 | 50.4 | 535.3 | 164.8 |
+| `mobilenet_v3_micro_2d` | 0.413 | 0.425 | 345.0 | 19,480,016 | 152,187 | 50.4 | 535.3 | 164.8 |
+| `my_mlp` | 1.399 | 1.395 | 26.0 | 61,060 | 477 | 1.2 | 216.3 | 164.8 |
+
+`–` = does not fit into the 1 MB flash of the nRF5340 (runs in Renode only: `make -C ml table TARGET=renode`).
+Arena = tensor memory TFLite Micro actually needs; Flash and RAM = whole firmware (Zephyr + TFLM + model).
+Renode is not cycle-accurate (here 23–31 % fewer cycles than the board): good for comparing models,
+absolute numbers come from the board. Unstructured pruning (`pruned50/90`) leaves size and cycles
+unchanged, since TFLite Micro still stores and multiplies the zeros.
+
+## Outputs
+
+Each checkpoint gets one folder in `ml/outputs/`, mirroring its path in `ml/checkpoints/`:
+
+```
+ml/checkpoints/mobilenet/relu.pt  →  ml/outputs/mobilenet/relu/
+                                       ├── fp32_full/model.tflite, model.onnx   float32
+                                       ├── int8_full/model.tflite               INT8 incl. input/output (MCU)
+                                       ├── int8_qdq/model.onnx                  INT8 weights/activations, float32 I/O
+                                       └── results.json
+```
+
+`results.json` is filled step by step: `export` adds size, sha256 and MAE of every model;
+`sim` / `measure` add one entry per device (`renode`, `nrf5340dk`). The firmware prints the
+sha256 of the model it runs, and only that sha256 links a measurement to a model: it can never
+end up at the wrong one, and a re-export that changes the model drops old measurements.
+
+```json
+"targets": {
+  "nrf5340dk": {
+    "artifact": "int8_full/model.tflite", "sha256": "795d8933…",
+    "cycles": 61060, "latency_us": 477, "arena_used_bytes": 1252,
+    "flash_bytes": 221472, "ram_bytes": 168792, "prediction": 1.8906,
+    "measured_at": "2026-10-29T21:48:14+00:00"
+  }
+}
+```
 
 ## Repository layout
 
 ```
-ml/              Python package `ble_cs_profiling`: models, training, INT8 export, C/C++ codegen
-  Dockerfile     Image for the ml pipeline (CPU or CUDA variant)
-firmware/nrf5340/  Zephyr/NCS inference app: Renode simulation + real DK (see its README)
-docs/            Design notes (e.g. why ONNX is exported with opset 13)
-compose.yaml     Container entry points: `ml` (CPU), `ml-gpu` (CUDA), `fw` (firmware build), `renode`
+ml/                 Python package ble_cs_profiling (CLI: ble-cs): models, training, export, codegen, results
+  Makefile          entry points for the ML steps (all run in Docker)
+firmware/nrf5340/   Zephyr / NCS 2.6.0 app: runs the model, prints per-layer cycles and a RESULT line
+  scripts/          run_json.py: UART log + ELF -> run.json
+  Makefile          build, simulate, flash, measure
+docs/               setup guides and design notes
+compose.yaml        all containers: ml, ml-gpu, fw, renode
 ```
 
-## Prerequisites
+Training settings are fixed constants in [ml/src/ble_cs_profiling/config.py](ml/src/ble_cs_profiling/config.py)
+(seed 42): training twice gives the same checkpoint. New models are registered in
+[models/registry.py](ml/src/ble_cs_profiling/models/registry.py).
 
-There are two ways to run the pipeline. You need **either** Docker **or** a local Python setup.
+## Requirements
 
-### Option A: Docker (recommended)
+| What | Needed for |
+|---|---|
+| Docker Engine + Compose v2 (Linux or WSL2), user in group `docker` | everything |
+| NVIDIA driver + [NVIDIA Container Toolkit](docs/nvidia_container_toolkit.md) | GPU training (`ml-gpu`), dev container |
+| J-Link, nrfutil, usbipd (WSL) — [setup guide](docs/wsl_flashing_setup.md) | real board only |
 
-| What | Needed for | Notes |
-|---|---|---|
-| Docker Engine with Compose v2 | everything | Linux or WSL2. Your user must be in the `docker` group |
-| NVIDIA driver | `ml-gpu` only | On WSL2 install the **Windows** driver, nothing inside WSL |
-| **NVIDIA Container Toolkit** | `ml-gpu` only | **Not included in Docker, install it yourself**, see below |
+Containers run as UID 1000. If `id -u` differs: `docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)`.
+After changing code in `ml/` rebuild the image (`make -C ml images`), otherwise the old code runs.
 
-The CPU service `ml` works without any NVIDIA software.
+### Hardware
 
-#### Installing the NVIDIA Container Toolkit (Ubuntu / WSL2)
+Variant #1 (Renode) gets 8 MB RAM / 16 MB flash, so any model runs. Variant #2 is the real
+nRF5340 DK (1 MB flash, 448 KB app RAM, 128 KB arena). Details: [firmware/nrf5340/README.md](firmware/nrf5340/README.md).
 
-Containers cannot see the GPU on their own. The toolkit mounts the host's driver and GPU
-device into the container at start-up, so images stay driver-free and portable. Without it,
-`docker compose run ml-gpu …` fails with:
+### Development
 
-```
-failed to discover GPU vendor from CDI: no known GPU vendor found
-```
-
-Install it once on the host (official NVIDIA apt repository):
-
-```bash
-# 1. Signing key
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-
-# 2. Package source
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-# 3. Install
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-
-# 4. Register the runtime with Docker (writes /etc/docker/daemon.json) and restart Docker
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-```
-
-Check that it worked. This should print your GPU:
-
-```bash
-docker run --rm --gpus all ubuntu nvidia-smi
-```
-
-If you still see the CDI error, generate the GPU description manually and restart Docker:
-
-```bash
-sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
-sudo systemctl restart docker
-```
-
-> ⚠️ **WSL2:** Never install a Linux NVIDIA driver inside WSL (`nvidia-driver-*`, or
-> `cuda` meta-packages that pull one in). WSL gets the driver from Windows via
-> `/usr/lib/wsl/lib`, and a Linux driver breaks that bridge. The Container Toolkit is
-> not a driver and is safe to install.
->
-> A local CUDA toolkit (`nvcc`) is **not** needed. PyTorch ships its own CUDA runtime,
-> only the driver has to be new enough (CUDA 13.0 → driver ≥ 580).
-
-Tested with: Ubuntu 24.04 on WSL2, Docker Engine 29.8, NVIDIA Container Toolkit 1.20.1,
-Windows driver 596.08.
-
-### Development: Dev Container (recommended for working on the code)
-
-Requires everything from Option A (including the NVIDIA Container Toolkit, the dev
-container uses the GPU) plus the VS Code extension **Dev Containers**
-(`ms-vscode-remote.remote-containers`).
-
-Open the repository in VS Code → `F1` → **Dev Containers: Reopen in Container**.
-
-- Image: stage `dev` of `ml/Dockerfile` (CUDA torch, plus git, pytest, ruff, ipykernel)
-- The repository is mounted at `/workspace`. The Python environment lives in `/app/.venv`
-  inside the image and is **read-only**. The host's `ml/.venv` is never touched.
-- To add a package: `uv add --no-sync <package>` (updates `pyproject.toml` + `uv.lock`),
-  then **Dev Containers: Rebuild Container**.
-- Shell history and caches are kept in the named volumes `ble-cs-bashhistory` and
-  `ble-cs-cache`, so they survive rebuilds.
-
-Personal extensions (e.g. AI assistants) belong in your VS Code user settings, not in
-`devcontainer.json`: `"dev.containers.defaultExtensions": ["<publisher.extension>"]`.
-
-### Option B: Local Python
-
-- [uv](https://docs.astral.sh/uv/) ≥ 0.11 (uv installs Python 3.11 itself)
-- For GPU training: an NVIDIA driver supporting CUDA 13.0
-
-```bash
-cd ml
-uv sync --extra cu130      # GPU (or: --extra cpu)
-source .venv/bin/activate
-ble-cs --help
-```
-
-Always pass the extra (`cu130` or `cpu`). A plain `uv sync` swaps in a different torch build.
-
-## Data
-
-The datasets are **not** part of the repository. Place them in `ml/data/`:
-
-```
-ml/data/combined_training_reduced.parquet
-ml/data/combined_eval_reduced.parquet
-```
-
-Also create the output folders before the first Docker run. Compose refuses to create
-them itself, since Docker would create them owned by root:
-
-```bash
-mkdir -p ml/checkpoints ml/outputs
-```
-
-## Quickstart (Docker)
-
-Run from the repository root:
-
-```bash
-docker compose build ml ml-gpu
-
-docker compose run --rm ml models                                         # list models
-docker compose run --rm ml-gpu train -m edge_bench_mlp                    # train on GPU
-docker compose run --rm ml export /app/checkpoints/edge_bench_mlp.pt      # ONNX + TFLite INT8
-docker compose run --rm ml codegen model /app/outputs/edge_bench_mlp_full_int8.tflite
-```
-
-Paths passed to `ble-cs` are container paths. `/app/data`, `/app/checkpoints` and
-`/app/outputs` map to `ml/data`, `ml/checkpoints` and `ml/outputs`. Results land in those
-folders and belong to your user (the container runs as a non-root user with UID 1000).
-
-If your host user does not have UID 1000 (`id -u`), build with your own IDs:
-
-```bash
-docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)
-```
+VS Code → **Dev Containers: Reopen in Container** gives the `dev` stage of `ml/Dockerfile`
+(GPU torch, pytest, ruff, debugger; launch configs in `.vscode/launch.json`). Its Python
+environment is read-only: add packages with `uv add --no-sync <package>`, then rebuild the container.

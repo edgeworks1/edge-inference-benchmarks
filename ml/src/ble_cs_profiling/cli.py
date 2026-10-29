@@ -18,6 +18,8 @@ app = typer.Typer(
 )
 codegen_app = typer.Typer(help="Generate C/C++ sources for the firmware.", no_args_is_help=True)
 app.add_typer(codegen_app, name="codegen")
+results_app = typer.Typer(help="Collect measurements in <output dir>/<checkpoint>/results.json.", no_args_is_help=True)
+app.add_typer(results_app, name="results")
 
 ExistingFile = Annotated[
     Path, typer.Argument(exists=True, dir_okay=False, readable=True, resolve_path=True)
@@ -47,7 +49,7 @@ def train(
 @app.command()
 def export(
     checkpoint: ExistingFile,
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>.")] = None,
+    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Root folder; files go to <out dir>/<checkpoint name>/. Default: <output dir>.")] = None,
     onnx: Annotated[bool, typer.Option(help="FP32 + INT8 ONNX.")] = True,
     tflite: Annotated[bool, typer.Option(help="FP32 + full INT8 TFLite.")] = True,
     onnx_opset: int = 13,
@@ -71,17 +73,17 @@ def export(
 @codegen_app.command("model")
 def codegen_model(
     tflite: ExistingFile,
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="E.g. the firmware's src/ML_Models; default: <output dir>/codegen.")] = None,
+    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <tflite folder>/codegen.")] = None,
 ) -> None:
-    """Embed a .tflite model as model_data.h / model_data.cc."""
+    """Embed a .tflite model (+ its sha256) as model_data.h / model_data.cc."""
     from ble_cs_profiling.codegen import write_model_sources
 
-    write_model_sources(tflite, out_dir or cfg.OUTPUT_DIR / "codegen")
+    write_model_sources(tflite, out_dir or tflite.parent / "codegen")
 
 
 @codegen_app.command("samples")
 def codegen_samples(
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>/codegen.")] = None,
+    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")] = None,
     num_samples: Annotated[int, typer.Option("--num-samples", "-n")] = 10,
     seed: int = 34,
 ) -> None:
@@ -92,7 +94,31 @@ def codegen_samples(
         cfg.EVAL_DATA_PATH,
         cfg.FEATURES_RAW_IQ_ALL,
         cfg.TARGET,
-        out_dir or cfg.OUTPUT_DIR / "codegen",
+        out_dir or cfg.OUTPUT_DIR / "samples",
         num_samples=num_samples,
         seed=seed,
     )
+
+
+@results_app.command("record")
+def results_record() -> None:
+    """Read a device run (run.json) from stdin and add it to results.json of the model it ran.
+
+    Example: cat build/hil/run.json | docker compose run --rm -T ml results record
+    """
+    import json
+    import sys
+
+    from ble_cs_profiling.results import record_run
+
+    record_run(json.load(sys.stdin), cfg.OUTPUT_DIR)
+
+
+@results_app.command("table")
+def results_table(
+    target: Annotated[str, typer.Option(help="Device whose measurements fill the table.")] = "nrf5340dk",
+) -> None:
+    """Print all results.json as one Markdown table (e.g. for the README)."""
+    from ble_cs_profiling.results import markdown_table
+
+    print(markdown_table(cfg.OUTPUT_DIR, target))

@@ -29,12 +29,8 @@ services:
         target: /app/outputs
         bind:
           create_host_path: false
-      # Firmware-Quellen: Ziel für `codegen` (-o /app/firmware/ML_Models bzw. /app/firmware)
-      - type: bind
-        source: ./firmware/nrf5340/src
-        target: /app/firmware
-        bind:
-          create_host_path: false
+      # Bewusst KEIN Firmware-Mount: ml kennt die Firmware nicht. Codegen schreibt nach
+      # outputs/, ml/Makefile kopiert in die Firmware; Messwerte kommen als run.json per stdin.
 
   # Wie `ml`, aber mit CUDA-torch und GPU-Zugriff (lokales Training).
   # Braucht auf dem Host das NVIDIA Container Toolkit.

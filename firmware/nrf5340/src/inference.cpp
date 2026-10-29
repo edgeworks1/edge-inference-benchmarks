@@ -104,6 +104,11 @@ bool inference_init(const unsigned char* model_data)
     return true;
 }
 
+size_t inference_arena_used(void)
+{
+    return is_initialized ? interpreter->arena_used_bytes() : 0;
+}
+
 bool inference_run(const float* raw_features, InferenceResult* result)
 {
     if (!is_initialized || raw_features == nullptr || result == nullptr) {

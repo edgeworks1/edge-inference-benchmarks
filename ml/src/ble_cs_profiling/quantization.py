@@ -134,10 +134,10 @@ def evaluate_tflite(path: Path, inputs: np.ndarray, targets: np.ndarray) -> floa
             raise ValueError("Non-finite prediction or target during evaluation")
         total_error += error
         if index % 10000 == 0:
-            print(f"Eval {path.stem}: {index:,}/{len(inputs):,} Samples", flush=True)
+            print(f"Eval {path}: {index:,}/{len(inputs):,} Samples", flush=True)
 
     mae = total_error / len(inputs)
-    print(f"Globaler MAE auf Eval-Set [{path.stem}]: {mae:.4f} m ({len(inputs):,} Samples)", flush=True)
+    print(f"Globaler MAE auf Eval-Set [{path}]: {mae:.4f} m ({len(inputs):,} Samples)", flush=True)
     return mae
 
 

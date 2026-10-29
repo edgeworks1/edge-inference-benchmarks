@@ -5,6 +5,7 @@ with the firmware: file and variable names stay fixed so that swapping a model o
 recompiles one translation unit (no ``west build --pristine`` needed).
 """
 
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,8 @@ def write_model_sources(tflite_path: Path, output_dir: Path) -> tuple[Path, Path
 
     data = tflite_path.read_bytes()
     data_len = len(data)
+    # Die Firmware gibt den sha256 aus -> Messwerte lassen sich dem Modell eindeutig zuordnen
+    model_sha256 = hashlib.sha256(data).hexdigest()
     formatted_hex = ",\n".join(
         "    " + ", ".join(f"0x{byte:02x}" for byte in data[i:i + HEX_BYTES_PER_LINE])
         for i in range(0, data_len, HEX_BYTES_PER_LINE)
@@ -33,9 +36,10 @@ def write_model_sources(tflite_path: Path, output_dir: Path) -> tuple[Path, Path
         "#pragma once\n\n"
         "#include <cstddef>\n"
         "#include <cstdint>\n\n"
-        f"// Quelle: {tflite_path.name} ({data_len:,} Bytes / {data_len / 1024:.2f} KB)\n"
+        f"// Quelle: {tflite_path} ({data_len:,} Bytes / {data_len / 1024:.2f} KB)\n"
         f"extern const unsigned char g_{MODEL_SYMBOL}[];\n"
         f"extern const size_t g_{MODEL_SYMBOL}_len;\n"
+        f"extern const char g_{MODEL_SYMBOL}_sha256[];\n"
     )
 
     source_path = output_dir / f"{MODEL_BASE_NAME}.cc"
@@ -46,6 +50,7 @@ def write_model_sources(tflite_path: Path, output_dir: Path) -> tuple[Path, Path
         f"{formatted_hex}"
         "\n};\n\n"
         f"const size_t g_{MODEL_SYMBOL}_len = {data_len};\n"
+        f'const char g_{MODEL_SYMBOL}_sha256[] = "{model_sha256}";\n'
     )
     print(f"Modell-Sources erzeugt: {header_path}, {source_path} ({data_len / 1024:.2f} KB)")
     return header_path, source_path
