@@ -44,7 +44,9 @@ cu130 = ["torch==2.12.1"]
 dev = [
     "ipykernel>=7.0",
     "pytest>=8.0",
-    "ruff>=0.14",
+    # Pinned exactly: the formatter output may change between versions, which would make
+    # every machine produce slightly different formatting.
+    "ruff==0.16.10",
 ]
 analysis = [
     "openpyxl>=3.1",
@@ -72,3 +74,27 @@ explicit = true
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle: basic style errors and warnings
+    "F",       # pyflakes: unused imports and variables, undefined names
+    "I",       # isort: import order
+    "B",       # flake8-bugbear: likely bugs (mutable defaults, loop variable capture ...)
+    "UP",      # pyupgrade: modern syntax for the target Python version
+    "SIM",     # flake8-simplify: needlessly complicated constructs
+    "D1",      # pydocstyle: every public module, class and function needs a docstring
+]
+ignore = [
+    "D104",  # package __init__.py files may stay empty
+    "D105",  # magic methods (__repr__ ...) explain themselves
+    "D107",  # __init__: the class docstring describes the constructor
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ble_cs_profiling"]

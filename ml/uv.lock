@@ -192,7 +192,7 @@ analysis = [{ name = "openpyxl", specifier = ">=3.1" }]
 dev = [
     { name = "ipykernel", specifier = ">=7.0" },
     { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.14" },
+    { name = "ruff", specifier = "==0.16.10" },
 ]
 
 [[package]]

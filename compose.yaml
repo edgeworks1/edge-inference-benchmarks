@@ -42,6 +42,23 @@ services:
     image: ble-cs:cu130
     gpus: all
 
+  # Development tools (ruff, pytest) in the exact versions from uv.lock, CPU only.
+  # Uses the dev stage of ml/Dockerfile and mounts ml/ read-write, so `ruff format` edits the
+  # host files. Entry point: make -C ml format / lint / check
+  ml-dev:
+    build:
+      context: ./ml
+      target: dev
+      args:
+        TORCH_VARIANT: cpu
+    image: ble-cs:dev-cpu
+    volumes:
+      - type: bind
+        source: ./ml
+        target: /workspace/ml
+        bind:
+          create_host_path: false
+
   # nRF5340 firmware build (Zephyr/NCS). The image holds only tools + SDK; the firmware
   # folder is mounted, so build/ ends up directly on the host.
   #   docker compose run --rm fw                            # default build (see command)

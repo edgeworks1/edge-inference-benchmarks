@@ -25,13 +25,14 @@ TARGET ?= nrf5340dk
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE := docker compose -f $(HERE)../compose.yaml
 ML      := $(COMPOSE) run --rm ml
+DEV     := $(COMPOSE) run --rm -T ml-dev
 TRAIN   := $(COMPOSE) run --rm $(if $(filter 1,$(GPU)),ml-gpu,ml)
 NOEVAL  := $(if $(filter 0,$(EVAL)),--no-eval)
 # Host path: the ml package does not know the firmware, only this Makefile copies into it
 NRF_SRC := $(HERE)../firmware/nrf5340/src
 STEP    := $(MAKE) --no-print-directory -f $(lastword $(MAKEFILE_LIST))
 
-.PHONY: help models images train export tflite onnx to-nrf samples table train-export ckpt-to-nrf all
+.PHONY: help models images train export tflite onnx to-nrf samples table format lint check train-export ckpt-to-nrf all
 
 help:
 	@echo "Single steps:"
@@ -47,6 +48,10 @@ help:
 	@echo "  all          train + tflite + to-nrf + samples (up to a buildable firmware)"
 	@echo "Results:"
 	@echo "  table        all results.json as a Markdown table (TARGET=$(TARGET))"
+	@echo "Code quality:"
+	@echo "  format       format code and apply safe lint fixes (changes files)"
+	@echo "  lint         report lint findings"
+	@echo "  check        formatting + lint, changes nothing (what CI runs)"
 	@echo "Other: models, images"
 	@echo "Parameters: M=$(M) GPU=$(GPU) EVAL=$(EVAL) [CKPT=...] [TFLITE=...]"
 
@@ -55,7 +60,7 @@ models:
 
 # After changes to ml/src, the Dockerfile, pyproject.toml or uv.lock, otherwise old code runs
 images:
-	$(COMPOSE) build ml ml-gpu
+	$(COMPOSE) build ml ml-gpu ml-dev
 
 # ---- Single steps ----
 train:
@@ -82,6 +87,18 @@ samples:
 
 table:
 	@$(COMPOSE) --progress quiet run --rm -T ml results table --target $(TARGET)
+
+# ---- Code quality (ruff from uv.lock, configured in pyproject.toml) ----
+format:
+	$(DEV) ruff format .
+	$(DEV) ruff check --fix .
+
+lint:
+	$(DEV) ruff check .
+
+check:
+	$(DEV) ruff format --check .
+	$(DEV) ruff check .
 
 # ---- Flows (run one after another, even with make -j) ----
 train-export:
