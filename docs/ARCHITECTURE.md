@@ -90,7 +90,7 @@ Byte-Array in C-Code umgewandelt und landet im Flash. Zusätzlich wird der **sha
 
 **5/6 – Firmware.** Zephyr (RTOS) + TensorFlow Lite Micro + CMSIS-NN-Kernels. Zwei Varianten
 derselben App: **Renode** simuliert den Chip mit vergrößertem Speicher (jedes Modell läuft,
-Zyklen sind aber nur zum *Vergleichen* geeignet, hier 23–31 % daneben), das **echte Board**
+Zyklen sind aber nur zum *Vergleichen* geeignet, das Board braucht hier 24–32 % mehr), das **echte Board**
 liefert die gültigen Zahlen (Hardware-in-the-Loop, HIL).
 
 **7 – Ergebnisse.** Die Firmware gibt am Ende eine maschinenlesbare Zeile aus
