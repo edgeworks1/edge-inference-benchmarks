@@ -46,6 +46,18 @@ def load_eval_set(feature_names: list[str], target: str) -> tuple[np.ndarray, np
     return load_features(cfg.EVAL_DATA_PATH, feature_names), load_targets(cfg.EVAL_DATA_PATH, target)
 
 
+def draw_eval_samples(num_samples: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(features, targets)`` of ``num_samples`` reproducible random eval samples.
+
+    Used as fixed test inputs on the device, so that every model sees the same inputs.
+    """
+    if num_samples < 1:
+        raise ValueError("num_samples must be positive")
+    eval_df = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[*cfg.FEATURES_RAW_IQ_ALL, cfg.TARGET])
+    sampled = eval_df.sample(n=num_samples, random_state=seed)
+    return sampled[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32), sampled[cfg.TARGET].to_numpy(dtype=np.float32)
+
+
 def load_calibration_inputs(feature_names: list[str]) -> np.ndarray:
     """Draw ``CALIBRATION_SAMPLES`` reproducible training samples for INT8 calibration.
 

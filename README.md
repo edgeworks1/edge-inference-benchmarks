@@ -46,8 +46,6 @@ nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. MAE on the full eval
 | Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
 | `edge_bench_mlp` | 1.399 | 1.395 | 26.0 | 61,060 | 477 | 1.2 | 216.3 | 164.8 |
-| `edge_bench_mlp_pruned50` | 1.411 | 1.411 | 26.0 | 60,979 | 476 | 1.2 | 216.2 | 164.8 |
-| `edge_bench_mlp_pruned90` | 1.627 | 1.626 | 26.0 | 60,973 | 476 | 1.2 | 216.2 | 164.8 |
 | `mobilenet` | 0.506 | 0.510 | 1916.1 | – | – | – | – | – |
 | `mobilenet/bad_simd` | 0.507 | 0.509 | 1908.4 | – | – | – | – | – |
 | `mobilenet/relu` | 0.470 | 0.476 | 1925.5 | – | – | – | – | – |
@@ -58,8 +56,7 @@ nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. MAE on the full eval
 `–` = does not fit into the 1 MB flash of the nRF5340 (runs in Renode only: `make -C ml table TARGET=renode`).
 Arena = tensor memory TFLite Micro actually needs; Flash and RAM = whole firmware (Zephyr + TFLM + model).
 Renode is not cycle-accurate (here 23–31 % fewer cycles than the board): good for comparing models,
-absolute numbers come from the board. Unstructured pruning (`pruned50/90`) leaves size and cycles
-unchanged, since TFLite Micro still stores and multiplies the zeros.
+absolute numbers come from the board.
 
 ## Outputs
 

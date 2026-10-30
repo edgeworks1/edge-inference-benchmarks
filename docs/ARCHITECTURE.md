@@ -159,13 +159,14 @@ Wird ein Modell neu exportiert und ändert sich dabei, fliegen alte Messungen au
 ### Feste Ablage, feste Namen
 `ml/outputs/<checkpoint>/<präzision>/model.<format>`: Jeder weiß ohne Nachfragen, wo welche
 Datei liegt, und Skripte können sich darauf verlassen. Der Ordnername kommt vom Checkpoint,
-nicht vom Modelltyp, damit Varianten (z. B. `pruned50`, `pruned90`) sich nicht überschreiben.
+nicht vom Modelltyp, damit Varianten desselben Modells (z. B. zwei Trainingsläufe) sich nicht
+überschreiben.
 
 ### Messen statt raten
 Simulator, Austauschformat und Board liefern unterschiedliche Zahlen. Ein Beispiel aus diesem
-Repo: Unstrukturiertes Pruning auf 90 % hat weder die Modellgröße noch die Zyklen verändert,
-weil TFLite Micro die Nullen trotzdem speichert und multipliziert. Das sieht man nur, wenn man
-misst.
+Repo: INT4- statt INT8-Gewichte haben beim MobileNet den Flash um ein Drittel verkleinert, aber
+die Zyklen um 35 % und die Tensor-Arena auf das 5,6-Fache erhöht, weil TFLite Micro die
+INT4-Gewichte zur Laufzeit in einen INT8-Puffer entpackt. Das sieht man nur, wenn man misst.
 
 ---
 

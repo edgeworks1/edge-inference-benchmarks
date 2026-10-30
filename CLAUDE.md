@@ -25,7 +25,7 @@ more than a few lines:
    **Wait** for the user before starting the next step. Only if the user explicitly states to do everything at once, do so, otherwise follow the substep rule always.
 4. Prefer the simple, readable solution over a clever one. Match the existing code style and place great importance on readable code, using helper methods, clean architecture ...
 5. Avoid emojis/smileys/other unusual things in the code.
-6. After providing the code changes, do not write a standard summary. Instead, include an "Active Recall & Verification" section with approx. 3 targeted technical questions about the implementation (e.g. edge cases, trade-offs, performance, or language-specific mechanics). Provide the answer to those questions immediately after the question.
+6. After providing the code changes, do not write a standard summary. Instead, include an "Active Recall & Verification" section with approx. 3 targeted technical questions about the implementation (e.g.mostly architecture or trade-offs). Provide the answer to those questions immediately after the question.
 
 ## Essentials
 

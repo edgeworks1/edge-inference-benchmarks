@@ -1,7 +1,7 @@
 """Command line interface: ``ble-cs <command>`` (overview: ``ble-cs --help``).
 
-The commands only parse arguments and delegate to the library modules. Heavy
-imports (torch, litert) happen inside the commands so that ``--help`` stays fast.
+The commands only parse arguments and delegate to the library modules. Heavy imports
+(torch, LiteRT, ONNX Runtime) happen inside the commands so that ``--help`` stays fast.
 """
 
 from pathlib import Path
@@ -55,7 +55,7 @@ def export(
     onnx_opset: int = 13,
     evaluate: Annotated[bool, typer.Option("--eval/--no-eval", help="MAE of the FP32 and full INT8 TFLite on the eval set.")] = True,
 ) -> None:
-    """Export a checkpoint to ONNX / TFLite (FP32 + full INT8)."""
+    """Export a checkpoint to ONNX and TFLite (FP32 + INT8) and record sizes and MAE."""
     from ble_cs_profiling.export import ExportOptions, export_checkpoint
 
     options = ExportOptions(
@@ -65,7 +65,7 @@ def export(
         evaluate=evaluate,
     )
     artifacts = export_checkpoint(checkpoint, out_dir or cfg.OUTPUT_DIR, options)
-    print("\nArtefakte:")
+    print("\nArtifacts:")
     for name, path in artifacts.items():
         print(f"  {name:20s} {path}")
 
@@ -89,15 +89,10 @@ def codegen_samples(
 ) -> None:
     """Draw reproducible eval samples as data.hpp (MCU) and .npy (Jetson/PC)."""
     from ble_cs_profiling.codegen import write_test_samples
+    from ble_cs_profiling.data import draw_eval_samples
 
-    write_test_samples(
-        cfg.EVAL_DATA_PATH,
-        cfg.FEATURES_RAW_IQ_ALL,
-        cfg.TARGET,
-        out_dir or cfg.OUTPUT_DIR / "samples",
-        num_samples=num_samples,
-        seed=seed,
-    )
+    features, targets = draw_eval_samples(num_samples, seed)
+    write_test_samples(features, targets, out_dir or cfg.OUTPUT_DIR / "samples")
 
 
 @results_app.command("record")
