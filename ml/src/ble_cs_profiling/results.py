@@ -12,7 +12,7 @@ hash. When a re-export changes a model, its old device measurements are dropped.
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +82,7 @@ def record_run(run: dict[str, Any], output_root: Path) -> list[Path]:
     measurement = {
         key: value for key, value in run.items() if key not in ("target", "model_sha256")
     }
-    measurement["measured_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    measurement["measured_at"] = datetime.now(UTC).isoformat(timespec="seconds")
 
     updated = []
     for path in sorted(output_root.glob(f"**/{RESULTS_FILE}")):
@@ -108,7 +108,7 @@ def record_run(run: dict[str, Any], output_root: Path) -> list[Path]:
 
 
 def _artifact_entry(artifact: Path, mae: float | None, previous: dict[str, Any]) -> dict[str, Any]:
-    """Describe one model file; keep its previous MAE if it was not re-evaluated and is unchanged."""
+    """Describe one model file; keep its old MAE if it was not re-evaluated and is unchanged."""
     entry: dict[str, Any] = {"size_bytes": artifact.stat().st_size, "sha256": sha256(artifact)}
     if mae is not None:
         entry["mae_m"] = round(mae, 4)

@@ -43,7 +43,8 @@ def write_model_sources(tflite_path: Path, output_dir: Path) -> tuple[Path, Path
     source_path = output_dir / f"{MODEL_FILE_STEM}.cc"
     source_path.write_text(
         f'#include "{MODEL_FILE_STEM}.h"\n\n'
-        "// const: placed in flash, not RAM. alignas(16): TFLite Micro reads the flatbuffer in place.\n"
+        "// const: placed in flash, not RAM.\n"
+        "// alignas(16): TFLite Micro reads the flatbuffer in place.\n"
         f"alignas(16) const unsigned char {MODEL_SYMBOL}[] = {{\n"
         f"{_c_byte_rows(model_bytes)}"
         "\n};\n\n"
@@ -64,6 +65,7 @@ def write_test_samples(
     output_dir.mkdir(parents=True, exist_ok=True)
     num_samples, num_features = features.shape
 
+    ground_truth = _c_floats(targets, decimals=4)
     header_path = output_dir / SAMPLES_HEADER
     header_path.write_text(
         "#pragma once\n\n"
@@ -75,7 +77,7 @@ def write_test_samples(
         f"{_c_float_rows(features)}"
         "};\n\n"
         "// Ground truth for a quick plausibility check of the predictions\n"
-        f"alignas(16) const float TEST_GROUND_TRUTH[NUM_TEST_SAMPLES] = {{{_c_floats(targets, decimals=4)}}};\n"
+        f"alignas(16) const float TEST_GROUND_TRUTH[NUM_TEST_SAMPLES] = {{{ground_truth}}};\n"
     )
 
     npy_path = output_dir / f"test_samples_{num_samples}.npy"

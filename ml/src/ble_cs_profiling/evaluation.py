@@ -39,10 +39,8 @@ def _load_single_io_interpreter(path: Path) -> tuple[Any, dict, dict]:
 
     interpreter = Interpreter(model_path=str(path), num_threads=4)
     interpreter.allocate_tensors()
-    input_details, output_details = (
-        interpreter.get_input_details(),
-        interpreter.get_output_details(),
-    )
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
     if len(input_details) != 1 or len(output_details) != 1:
         raise ValueError("Evaluation requires exactly one input and one output")
     return interpreter, input_details[0], output_details[0]
@@ -61,7 +59,7 @@ def _predict_one(
 
 
 def _to_model_input(value: np.ndarray, detail: dict) -> np.ndarray:
-    """Quantize a float input (``round(value / scale) + zero_point``) if the model expects integers."""
+    """Quantize a float input (``round(value / scale) + zero_point``) for integer models."""
     if np.issubdtype(detail["dtype"], np.integer):
         scale, zero_point = detail["quantization"]
         if scale <= 0:

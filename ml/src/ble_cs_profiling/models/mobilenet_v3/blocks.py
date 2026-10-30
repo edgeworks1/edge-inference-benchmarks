@@ -154,7 +154,7 @@ class InvertedResidual2D(nn.Module):
 
 
 class MobileNetV3Regressor2D(nn.Module):
-    """MobileNetV3 skeleton with a regression head: stem -> blocks -> 1x1 conv -> pool -> MLP head."""
+    """MobileNetV3 with a regression head: stem, blocks, 1x1 conv, pooling, MLP head."""
 
     def __init__(
         self,
@@ -214,7 +214,8 @@ class MobileNetV3Regressor2D(nn.Module):
             x = x.unsqueeze(1)
         if tuple(x.shape[1:]) != expected_shape:
             raise ValueError(
-                f"Expected input (batch, 300), (batch, 4, 75) or (batch, 1, 4, 75), got {tuple(x.shape)}"
+                "Expected input (batch, 300), (batch, 4, 75) or (batch, 1, 4, 75), "
+                f"got {tuple(x.shape)}"
             )
         return x
 

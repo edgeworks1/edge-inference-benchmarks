@@ -45,9 +45,9 @@ def load_training_set() -> tuple[np.ndarray, np.ndarray]:
 
 def load_eval_set(feature_names: list[str], target: str) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(features, targets)`` of the complete evaluation set."""
-    return load_features(cfg.EVAL_DATA_PATH, feature_names), load_targets(
-        cfg.EVAL_DATA_PATH, target
-    )
+    features = load_features(cfg.EVAL_DATA_PATH, feature_names)
+    targets = load_targets(cfg.EVAL_DATA_PATH, target)
+    return features, targets
 
 
 def draw_eval_samples(num_samples: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -59,9 +59,9 @@ def draw_eval_samples(num_samples: int, seed: int) -> tuple[np.ndarray, np.ndarr
         raise ValueError("num_samples must be positive")
     eval_df = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[*cfg.FEATURES_RAW_IQ_ALL, cfg.TARGET])
     sampled = eval_df.sample(n=num_samples, random_state=seed)
-    return sampled[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32), sampled[
-        cfg.TARGET
-    ].to_numpy(dtype=np.float32)
+    features = sampled[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32)
+    targets = sampled[cfg.TARGET].to_numpy(dtype=np.float32)
+    return features, targets
 
 
 def load_calibration_inputs(feature_names: list[str]) -> np.ndarray:

@@ -138,7 +138,7 @@ def _write_with_int8_io(model_bytes: bytes, output_path: Path) -> None:
 def quantize_onnx_int8_qdq(
     fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray
 ) -> Path:
-    """Quantize an FP32 ONNX model statically to INT8 (QDQ format, per-channel weights, float I/O)."""
+    """Quantize an FP32 ONNX model statically to INT8 (QDQ, per-channel weights, float I/O)."""
     from onnxruntime.quantization import QuantFormat, QuantType, quantize_static
     from onnxruntime.quantization.shape_inference import quant_pre_process
 

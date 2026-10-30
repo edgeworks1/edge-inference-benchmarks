@@ -5,7 +5,7 @@ The commands only parse arguments and delegate to the library modules. Heavy imp
 """
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -43,7 +43,7 @@ def train(
         str, typer.Option("--model", "-m", help="Registry name, see `ble-cs models`.")
     ] = "mobilenet_v3_small_2d",
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output", "-o", help="Checkpoint path; default: <checkpoint dir>/<model>.pt"
         ),
@@ -59,7 +59,7 @@ def train(
 def export(
     checkpoint: ExistingFile,
     out_dir: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--out-dir",
             "-o",
@@ -95,7 +95,7 @@ def export(
 def codegen_model(
     tflite: ExistingFile,
     out_dir: Annotated[
-        Optional[Path], typer.Option("--out-dir", "-o", help="Default: <tflite folder>/codegen.")
+        Path | None, typer.Option("--out-dir", "-o", help="Default: <tflite folder>/codegen.")
     ] = None,
 ) -> None:
     """Embed a .tflite model (+ its sha256) as model_data.h / model_data.cc."""
@@ -107,7 +107,7 @@ def codegen_model(
 @codegen_app.command("samples")
 def codegen_samples(
     out_dir: Annotated[
-        Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")
+        Path | None, typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")
     ] = None,
     num_samples: Annotated[int, typer.Option("--num-samples", "-n")] = 10,
     seed: int = 34,
