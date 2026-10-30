@@ -1,18 +1,18 @@
-# Startparameter der Pipeline-Container an einer Stelle.
-#   docker compose build                               # Image bauen
-#   docker compose run --rm ml train -m edge_bench_mlp # ble-cs <befehl> im Container (CPU)
-#   docker compose run --rm ml-gpu train -m ...       # dasselbe mit GPU
+# Start parameters of all pipeline containers in one place.
+#   docker compose build                               # build all images
+#   docker compose run --rm ml train -m edge_bench_mlp # run `ble-cs <command>` in a container (CPU)
+#   docker compose run --rm ml-gpu train -m ...        # the same on the GPU
 services:
   ml:
     build:
       context: ./ml
-      target: runtime   # Stage im Dockerfile (nicht die zuletzt definierte, s. dev)
+      target: runtime   # Dockerfile stage (otherwise the last one, dev, would be built)
       args:
         TORCH_VARIANT: cpu
     image: ble-cs:cpu
     volumes:
-      # create_host_path: false -> fehlt der Ordner, bricht Compose ab,
-      # statt ihn still als root anzulegen (dann dürfte der User app nicht hineinschreiben)
+      # create_host_path: false -> Compose aborts if the folder is missing instead of silently
+      # creating it as root (the container user app could not write into it then)
       - type: bind
         source: ./ml/data
         target: /app/data
@@ -29,11 +29,11 @@ services:
         target: /app/outputs
         bind:
           create_host_path: false
-      # Bewusst KEIN Firmware-Mount: ml kennt die Firmware nicht. Codegen schreibt nach
-      # outputs/, ml/Makefile kopiert in die Firmware; Messwerte kommen als run.json per stdin.
+      # Deliberately NO firmware mount: ml does not know the firmware. Codegen writes to
+      # outputs/, ml/Makefile copies into the firmware; measurements come back as run.json via stdin.
 
-  # Wie `ml`, aber mit CUDA-torch und GPU-Zugriff (lokales Training).
-  # Braucht auf dem Host das NVIDIA Container Toolkit.
+  # Like `ml`, but with CUDA torch and GPU access (local training).
+  # Needs the NVIDIA Container Toolkit on the host (docs/nvidia_container_toolkit.md).
   ml-gpu:
     extends: ml
     build:
@@ -42,10 +42,10 @@ services:
     image: ble-cs:cu130
     gpus: all
 
-  # Firmware-Build nRF5340 (Zephyr/NCS). Image = nur Werkzeuge + SDK,
-  # der Firmware-Ordner wird eingehängt -> build/ landet direkt auf dem Host.
-  #   docker compose run --rm fw                    # Default-Build (s. command)
-  #   docker compose run --rm fw west build -t menuconfig   # beliebiger Befehl
+  # nRF5340 firmware build (Zephyr/NCS). The image holds only tools + SDK; the firmware
+  # folder is mounted, so build/ ends up directly on the host.
+  #   docker compose run --rm fw                            # default build (see command)
+  #   docker compose run --rm fw west build -t menuconfig   # any other command
   fw:
     build:
       context: ./firmware/nrf5340
@@ -57,11 +57,11 @@ services:
         target: /app
         bind:
           create_host_path: false
-    # Default: Variante #1 (Renode) -> build/renode. -S renode = Snippet mit großem Speicher.
-    # -p auto: pristine, wenn build/ von woanders stammt (z. B. WSL-Build mit anderen Pfaden)
+    # Default: variant #1 (Renode) -> build/renode. -S renode = snippet with enlarged memory.
+    # -p auto: pristine build if build/ comes from elsewhere (e.g. a WSL build with other paths)
     command: west build -b nrf5340dk_nrf5340_cpuapp -d build/renode -S renode -p auto --no-sysbuild
 
-  # Renode-Simulation des fertigen ELF (firmware/nrf5340/build) mit profile.resc.
+  # Renode simulation of the built ELF (firmware/nrf5340/build) with profile.resc.
   #   docker compose run --rm fw && docker compose run --rm renode
   renode:
     build:
@@ -72,9 +72,9 @@ services:
       - type: bind
         source: ./firmware/nrf5340
         target: /app
-        read_only: true   # Renode liest nur ELF + .resc/.repl
+        read_only: true   # Renode only reads the ELF and .resc/.repl
         bind:
           create_host_path: false
-    # Monitor-Befehle per -e: Skript laden (startet die Simulation), 10 s Echtzeit laufen lassen, beenden.
-    # Provisorisch – später ersetzt durch renode-test (wartet gezielt auf die UART-Ausgabe).
+    # Monitor commands via -e: load the script (starts the simulation), run 10 s wall time, quit.
+    # Provisional: to be replaced by renode-test (waits for the UART output instead of a fixed time).
     command: renode --disable-xwt --plain --console -e "include @renode/profile.resc; sleep 10; quit"

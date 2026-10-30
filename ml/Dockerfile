@@ -1,97 +1,96 @@
-# torch-Variante beim Build wählbar: cpu (CI, Default) oder cu130 (lokales GPU-Training).
-# Globales ARG vor dem ersten FROM; jede Stage, die es braucht, holt es mit `ARG TORCH_VARIANT`.
+# torch build chosen at build time: cpu (CI, default) or cu130 (local GPU training).
+# Global ARG before the first FROM; every stage that needs it re-declares `ARG TORCH_VARIANT`.
 ARG TORCH_VARIANT=cpu
 
 # =============================================================================
-# Stage "base": Python + uv + alle Abhängigkeiten aus uv.lock
-# Gemeinsamer Unterbau für runtime (CI) und später dev (Dev Container).
+# Stage "base": Python + uv + all dependencies from uv.lock
+# Shared foundation of runtime (pipeline, CI) and dev (dev container).
 # =============================================================================
 FROM python:3.11-slim-trixie AS base
 
-# uv als einzelnes Binary aus dem offiziellen Image holen (gleiche Version wie lokal)
+# uv as a single binary from its official image (same version as used locally)
 COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# UV_COMPILE_BYTECODE: .pyc schon beim Build erzeugen -> schnellerer Start
-# UV_LINK_MODE=copy:   Pakete kopieren statt verlinken (der Cache liegt im Cache-Mount,
-#                      Hardlinks dorthin wären nach dem Build ins Leere zeigend)
-# UV_PYTHON_DOWNLOADS: das Python aus dem Basis-Image nutzen, keins nachladen
+# UV_COMPILE_BYTECODE: create .pyc files at build time -> faster start
+# UV_LINK_MODE=copy:   copy packages instead of linking (the uv cache is a cache mount,
+#                      hard links into it would point nowhere after the build)
+# UV_PYTHON_DOWNLOADS: use the Python of the base image, never download another one
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
-# ARGs gelten nur in ihrer Stage -> hier erneut holen (für das uv sync unten)
+# ARGs are scoped to their stage -> declare again for the uv sync below
 ARG TORCH_VARIANT
 
-# ---- Abhängigkeiten: nur die Lock-Dateien, noch kein Code ----
+# ---- Dependencies: lock files only, no code yet ----
 COPY pyproject.toml uv.lock .python-version ./
-# Cache-Mount: Speichert heruntergeladene .whl auf dem Host (spart ~2 GB erneuter Download
-# im Image, verhindert erneutes Laden aus dem Netz bei Paket-Änderungen).
+# Cache mount: downloaded wheels stay on the host between builds (about 2 GB for torch),
+# so a dependency change does not download everything again.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-install-project --extra ${TORCH_VARIANT}
 
-# Programme der venv (python, ble-cs) ohne Pfadangabe aufrufbar machen
-# Statt '/app/.venv/bin/ble-cs' reicht jetzt einfach 'ble-cs' oder 'python'.
+# Make the venv's programs (python, ble-cs) callable without a path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Non-Root-User mit Host-UID/GID (verhindert Root-Rechte in Volumes).
-# Hier unten platziert, damit abweichende CI-UIDs den schweren uv-Cache oben nicht invalidieren.
+# Non-root user with the host's UID/GID, so files written to mounted folders belong to you.
+# Placed after the dependency install: a different UID (e.g. in CI) keeps the heavy layer above cached.
 ARG UID=1000
 ARG GID=1000
-# --shell /bin/bash: Debian-Default ist /bin/sh (dash) -> keine Pfeiltasten-Historie, keine .bashrc
+# --shell /bin/bash: the Debian default /bin/sh (dash) has no history and ignores .bashrc
 RUN groupadd --gid ${GID} app && useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash app
 
 # =============================================================================
-# Stage "runtime": fertiges Programm (CI, `docker compose run ml / ml-gpu`)
+# Stage "runtime": the finished program (pipeline, CI, `docker compose run ml / ml-gpu`)
 # =============================================================================
 FROM base AS runtime
 
 ARG TORCH_VARIANT
 
-# ---- Code: ändert sich oft, deshalb erst NACH den Abhängigkeiten ----
-# Eine Code-Änderung baut nur die Layer ab hier neu, der Install-Layer oben bleibt gecacht.
+# ---- Code: changes often, so it is copied AFTER the dependencies ----
+# A code change only rebuilds the layers from here on, the install layer above stays cached.
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --extra ${TORCH_VARIANT}
 
-# Nicht als root laufen (User wurde in base angelegt)
+# Do not run as root (the user was created in base)
 USER app
 
-# Kapselt das Image als CLI-Tool: Argumente an "docker run" werden direkt an "ble-cs" durchgereicht (Default: --help).
+# The image behaves like the CLI: arguments of `docker run` go straight to ble-cs (default: --help)
 ENTRYPOINT ["ble-cs"]
 CMD ["--help"]
 
 # =============================================================================
-# Stage "dev": Arbeitsumgebung für den Dev Container (VS Code)
-# Das Repo wird zur Laufzeit unter /workspace eingehängt, NICHT unter /app.
-# Dadurch bleibt die venv aus base (/app/.venv) unberührt und wird weiterbenutzt.
+# Stage "dev": working environment of the VS Code dev container
+# The repo is mounted at /workspace at runtime, NOT at /app, so the venv from base
+# (/app/.venv) stays untouched and is reused.
 # =============================================================================
 FROM base AS dev
 ARG TORCH_VARIANT
 
-# git für Commits aus dem Container (VS Code reicht .gitconfig und Credentials durch)
+# git for commits from inside the container (VS Code forwards .gitconfig and credentials)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-# uv soll die venv aus base benutzen, nicht /workspace/ml/.venv (das ist die Host-venv)
-# UV_NO_SYNC: die venv gehört root und ist schreibgeschützt -> `uv run` soll nicht
-# synchronisieren. Paketänderungen: `uv add --no-sync <paket>`, dann Container neu bauen.
+# uv must use the venv from base, not /workspace/ml/.venv (that one belongs to the host)
+# UV_NO_SYNC: the venv belongs to root and is read-only, so `uv run` must not sync it.
+# Adding a package: `uv add --no-sync <package>`, then rebuild the container.
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
     UV_NO_SYNC=1
 
-# Projekt dort ablegen, wo später der Mount liegt -> die editable Installation zeigt auf
-# /workspace/ml/src. Zur Laufzeit überdeckt der Mount diese Kopie mit dem echten Repo.
+# Copy the project to where the mount will be -> the editable install points to
+# /workspace/ml/src. At runtime the mount replaces this copy with the real repo.
 WORKDIR /workspace/ml
 COPY pyproject.toml uv.lock .python-version ./
 COPY src/ src/
 
-# Dev-Pakete (pytest, ruff, ipykernel ...) + dein Paket editable dazu; der Rest ist schon da
+# Dev packages (pytest, ruff, ipykernel ...) plus this package as editable; the rest is already installed
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --extra ${TORCH_VARIANT}
 
-# Optionaler VS-Code-Komfort: Hält Shell-Historie und Caches über Container-Rebuilds hinweg persistent
+# Keep shell history and caches across container rebuilds (named volumes, see devcontainer.json)
 RUN mkdir -p /commandhistory /home/app/.cache \
     && touch /commandhistory/.bash_history \
     && chown -R app:app /commandhistory /home/app/.cache \
