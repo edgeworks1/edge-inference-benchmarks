@@ -50,12 +50,14 @@ def record_export(
     """Add the exported model files to ``results.json`` and drop measurements of replaced models."""
     path = run_dir / RESULTS_FILE
     results = load(path)
-    results.update({
-        "schema_version": SCHEMA_VERSION,
-        "checkpoint": checkpoint_name,
-        "model_name": checkpoint["model_name"],
-        "train_mae_m": round(checkpoint["eval_mae"], 4) if "eval_mae" in checkpoint else None,
-    })
+    results.update(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "checkpoint": checkpoint_name,
+            "model_name": checkpoint["model_name"],
+            "train_mae_m": round(checkpoint["eval_mae"], 4) if "eval_mae" in checkpoint else None,
+        }
+    )
 
     entries = results.setdefault("artifacts", {})
     for artifact in artifacts:
@@ -77,7 +79,9 @@ def record_run(run: dict[str, Any], output_root: Path) -> list[Path]:
     if missing:
         raise ValueError(f"Incomplete run.json, missing: {', '.join(sorted(missing))}")
 
-    measurement = {key: value for key, value in run.items() if key not in ("target", "model_sha256")}
+    measurement = {
+        key: value for key, value in run.items() if key not in ("target", "model_sha256")
+    }
     measurement["measured_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     updated = []
@@ -86,7 +90,9 @@ def record_run(run: dict[str, Any], output_root: Path) -> list[Path]:
         for artifact, info in results.get("artifacts", {}).items():
             if info["sha256"] == run["model_sha256"]:
                 results.setdefault("targets", {})[run["target"]] = {
-                    "artifact": artifact, "sha256": info["sha256"], **measurement,
+                    "artifact": artifact,
+                    "sha256": info["sha256"],
+                    **measurement,
                 }
                 save(path, results)
                 updated.append(path)
@@ -115,7 +121,9 @@ def _drop_stale_targets(results: dict[str, Any]) -> None:
     """Remove device measurements whose model file no longer exists in this export."""
     current_hashes = {entry["sha256"] for entry in results["artifacts"].values()}
     results["targets"] = {
-        target: run for target, run in results.get("targets", {}).items() if run["sha256"] in current_hashes
+        target: run
+        for target, run in results.get("targets", {}).items()
+        if run["sha256"] in current_hashes
     }
 
 
@@ -130,7 +138,10 @@ def markdown_table(output_root: Path, target: str) -> str:
         "|---|--:|--:|--:|--:|--:|--:|--:|--:|",
     ]
     all_results = [load(path) for path in output_root.glob(f"**/{RESULTS_FILE}")]
-    rows = [_table_row(results, target) for results in sorted(all_results, key=lambda r: r["checkpoint"])]
+    rows = [
+        _table_row(results, target)
+        for results in sorted(all_results, key=lambda r: r["checkpoint"])
+    ]
     return "\n".join(header + rows)
 
 

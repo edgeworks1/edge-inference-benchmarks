@@ -39,13 +39,18 @@ def _load_single_io_interpreter(path: Path) -> tuple[Any, dict, dict]:
 
     interpreter = Interpreter(model_path=str(path), num_threads=4)
     interpreter.allocate_tensors()
-    input_details, output_details = interpreter.get_input_details(), interpreter.get_output_details()
+    input_details, output_details = (
+        interpreter.get_input_details(),
+        interpreter.get_output_details(),
+    )
     if len(input_details) != 1 or len(output_details) != 1:
         raise ValueError("Evaluation requires exactly one input and one output")
     return interpreter, input_details[0], output_details[0]
 
 
-def _predict_one(interpreter: Any, input_detail: dict, output_detail: dict, sample: np.ndarray) -> float:
+def _predict_one(
+    interpreter: Any, input_detail: dict, output_detail: dict, sample: np.ndarray
+) -> float:
     """Run one float sample through the model and return its prediction as a float."""
     interpreter.set_tensor(input_detail["index"], _to_model_input(sample[None, ...], input_detail))
     interpreter.invoke()

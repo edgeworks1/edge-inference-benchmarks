@@ -34,8 +34,10 @@ def load_training_set() -> tuple[np.ndarray, np.ndarray]:
         subset_size = max(1, round(complete_size * cfg.TRAIN_SAMPLE_RATE))
         train_df = train_df.sample(n=subset_size, random_state=cfg.SEED)
 
-    print(f"Training data: {len(train_df):,}/{complete_size:,} samples "
-          f"({len(train_df) / complete_size:.1%})")
+    print(
+        f"Training data: {len(train_df):,}/{complete_size:,} samples "
+        f"({len(train_df) / complete_size:.1%})"
+    )
     features = train_df[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32)
     targets = train_df[cfg.TARGET].to_numpy(dtype=np.float32)
     return features, targets
@@ -43,7 +45,9 @@ def load_training_set() -> tuple[np.ndarray, np.ndarray]:
 
 def load_eval_set(feature_names: list[str], target: str) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(features, targets)`` of the complete evaluation set."""
-    return load_features(cfg.EVAL_DATA_PATH, feature_names), load_targets(cfg.EVAL_DATA_PATH, target)
+    return load_features(cfg.EVAL_DATA_PATH, feature_names), load_targets(
+        cfg.EVAL_DATA_PATH, target
+    )
 
 
 def draw_eval_samples(num_samples: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -55,7 +59,9 @@ def draw_eval_samples(num_samples: int, seed: int) -> tuple[np.ndarray, np.ndarr
         raise ValueError("num_samples must be positive")
     eval_df = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[*cfg.FEATURES_RAW_IQ_ALL, cfg.TARGET])
     sampled = eval_df.sample(n=num_samples, random_state=seed)
-    return sampled[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32), sampled[cfg.TARGET].to_numpy(dtype=np.float32)
+    return sampled[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32), sampled[
+        cfg.TARGET
+    ].to_numpy(dtype=np.float32)
 
 
 def load_calibration_inputs(feature_names: list[str]) -> np.ndarray:
@@ -68,5 +74,7 @@ def load_calibration_inputs(feature_names: list[str]) -> np.ndarray:
     if len(training_inputs) == 0:
         raise ValueError("Calibration needs a nonempty training set")
     sample_count = min(cfg.CALIBRATION_SAMPLES, len(training_inputs))
-    indices = np.random.default_rng(cfg.SEED).choice(len(training_inputs), sample_count, replace=False)
+    indices = np.random.default_rng(cfg.SEED).choice(
+        len(training_inputs), sample_count, replace=False
+    )
     return training_inputs[indices]

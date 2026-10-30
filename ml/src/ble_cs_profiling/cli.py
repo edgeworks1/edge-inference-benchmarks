@@ -18,7 +18,9 @@ app = typer.Typer(
 )
 codegen_app = typer.Typer(help="Generate C/C++ sources for the firmware.", no_args_is_help=True)
 app.add_typer(codegen_app, name="codegen")
-results_app = typer.Typer(help="Collect measurements in <output dir>/<checkpoint>/results.json.", no_args_is_help=True)
+results_app = typer.Typer(
+    help="Collect measurements in <output dir>/<checkpoint>/results.json.", no_args_is_help=True
+)
 app.add_typer(results_app, name="results")
 
 ExistingFile = Annotated[
@@ -37,8 +39,15 @@ def list_models() -> None:
 
 @app.command()
 def train(
-    model: Annotated[str, typer.Option("--model", "-m", help="Registry name, see `ble-cs models`.")] = "mobilenet_v3_small_2d",
-    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Checkpoint path; default: <checkpoint dir>/<model>.pt")] = None,
+    model: Annotated[
+        str, typer.Option("--model", "-m", help="Registry name, see `ble-cs models`.")
+    ] = "mobilenet_v3_small_2d",
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output", "-o", help="Checkpoint path; default: <checkpoint dir>/<model>.pt"
+        ),
+    ] = None,
 ) -> None:
     """Train a registered model with the fixed settings from config.py and save a checkpoint."""
     from ble_cs_profiling.train import train as run_training
@@ -49,11 +58,23 @@ def train(
 @app.command()
 def export(
     checkpoint: ExistingFile,
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Root folder; files go to <out dir>/<checkpoint name>/. Default: <output dir>.")] = None,
+    out_dir: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--out-dir",
+            "-o",
+            help="Root folder; files go to <out dir>/<checkpoint name>/. Default: <output dir>.",
+        ),
+    ] = None,
     onnx: Annotated[bool, typer.Option(help="FP32 + INT8 ONNX.")] = True,
     tflite: Annotated[bool, typer.Option(help="FP32 + full INT8 TFLite.")] = True,
     onnx_opset: int = 13,
-    evaluate: Annotated[bool, typer.Option("--eval/--no-eval", help="MAE of the FP32 and full INT8 TFLite on the eval set.")] = True,
+    evaluate: Annotated[
+        bool,
+        typer.Option(
+            "--eval/--no-eval", help="MAE of the FP32 and full INT8 TFLite on the eval set."
+        ),
+    ] = True,
 ) -> None:
     """Export a checkpoint to ONNX and TFLite (FP32 + INT8) and record sizes and MAE."""
     from ble_cs_profiling.export import ExportOptions, export_checkpoint
@@ -73,7 +94,9 @@ def export(
 @codegen_app.command("model")
 def codegen_model(
     tflite: ExistingFile,
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <tflite folder>/codegen.")] = None,
+    out_dir: Annotated[
+        Optional[Path], typer.Option("--out-dir", "-o", help="Default: <tflite folder>/codegen.")
+    ] = None,
 ) -> None:
     """Embed a .tflite model (+ its sha256) as model_data.h / model_data.cc."""
     from ble_cs_profiling.codegen import write_model_sources
@@ -83,7 +106,9 @@ def codegen_model(
 
 @codegen_app.command("samples")
 def codegen_samples(
-    out_dir: Annotated[Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")] = None,
+    out_dir: Annotated[
+        Optional[Path], typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")
+    ] = None,
     num_samples: Annotated[int, typer.Option("--num-samples", "-n")] = 10,
     seed: int = 34,
 ) -> None:
@@ -111,7 +136,9 @@ def results_record() -> None:
 
 @results_app.command("table")
 def results_table(
-    target: Annotated[str, typer.Option(help="Device whose measurements fill the table.")] = "nrf5340dk",
+    target: Annotated[
+        str, typer.Option(help="Device whose measurements fill the table.")
+    ] = "nrf5340dk",
 ) -> None:
     """Print all results.json as one Markdown table (e.g. for the README)."""
     from ble_cs_profiling.results import markdown_table

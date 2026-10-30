@@ -17,7 +17,9 @@ import numpy as np
 # ============================================================
 # TFLite: full INT8
 # ============================================================
-def quantize_tflite_full_int8(fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray) -> Path:
+def quantize_tflite_full_int8(
+    fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray
+) -> Path:
     """Quantize an FP32 TFLite model to full INT8 and reject any remaining float tensor."""
     from ai_edge_quantizer import quantizer, recipe
 
@@ -35,14 +37,21 @@ def validate_full_int8(path: Path) -> None:
     from ai_edge_litert.interpreter import Interpreter
 
     # Integer types that may remain: INT32 biases, INT64/BOOL shape and index tensors
-    allowed = {schema.TensorType.INT8, schema.TensorType.INT32, schema.TensorType.INT64, schema.TensorType.BOOL}
+    allowed = {
+        schema.TensorType.INT8,
+        schema.TensorType.INT32,
+        schema.TensorType.INT64,
+        schema.TensorType.BOOL,
+    }
     model = schema.Model.GetRootAsModel(path.read_bytes(), 0)
     for graph_index in range(model.SubgraphsLength()):
         graph = model.Subgraphs(graph_index)
         for tensor_index in range(graph.TensorsLength()):
             tensor = graph.Tensors(tensor_index)
             if tensor.Type() not in allowed:
-                raise ValueError(f"Not full INT8: tensor {tensor.Name()!r} has type {tensor.Type()}")
+                raise ValueError(
+                    f"Not full INT8: tensor {tensor.Name()!r} has type {tensor.Type()}"
+                )
 
     interpreter = Interpreter(model_path=str(path))
     interpreter.allocate_tensors()
@@ -51,7 +60,9 @@ def validate_full_int8(path: Path) -> None:
             raise ValueError("Full INT8 requires a quantized INT8 input and output")
 
 
-def _calibrate_tflite(fp32_path: Path, quantization_recipe: Any, calibration_inputs: np.ndarray) -> dict:
+def _calibrate_tflite(
+    fp32_path: Path, quantization_recipe: Any, calibration_inputs: np.ndarray
+) -> dict:
     """Run the calibration samples through the FP32 model and record every tensor's value range."""
     from ai_edge_quantizer import calibrator, recipe_manager
     from ai_edge_quantizer.utils import qsv_utils
@@ -62,7 +73,9 @@ def _calibrate_tflite(fp32_path: Path, quantization_recipe: Any, calibration_inp
     # Keep the global min/max: the default moving average would shrink the range of a
     # scalar regression output towards the average prediction and clip extreme distances.
     calibration = calibrator.Calibrator(
-        fp32_path.read_bytes(), num_threads=4, qsv_update_func=qsv_utils.min_max_update,
+        fp32_path.read_bytes(),
+        num_threads=4,
+        qsv_update_func=qsv_utils.min_max_update,
     )
     samples = [{input_name: sample[None, ...]} for sample in calibration_inputs]
     calibration.calibrate({signature: samples}, manager)
@@ -108,7 +121,10 @@ def _write_with_int8_io(model_bytes: bytes, output_path: Path) -> None:
         int8_io_path = Path(temporary) / "int8_io.tflite"
         float_io_path.write_bytes(model_bytes)
         status = _pywrap_modify_model_interface.modify_model_interface(
-            str(float_io_path), str(int8_io_path), schema.TensorType.INT8, schema.TensorType.INT8,
+            str(float_io_path),
+            str(int8_io_path),
+            schema.TensorType.INT8,
+            schema.TensorType.INT8,
         )
         if status != 0:
             raise RuntimeError("Could not convert the model input/output to INT8")
@@ -119,7 +135,9 @@ def _write_with_int8_io(model_bytes: bytes, output_path: Path) -> None:
 # ============================================================
 # ONNX: INT8 QDQ
 # ============================================================
-def quantize_onnx_int8_qdq(fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray) -> Path:
+def quantize_onnx_int8_qdq(
+    fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray
+) -> Path:
     """Quantize an FP32 ONNX model statically to INT8 (QDQ format, per-channel weights, float I/O)."""
     from onnxruntime.quantization import QuantFormat, QuantType, quantize_static
     from onnxruntime.quantization.shape_inference import quant_pre_process

@@ -48,8 +48,7 @@ def export_checkpoint(
     output_root: Path,
     options: ExportOptions | None = None,
 ) -> dict[str, Path]:
-    """Export one checkpoint to all requested formats and record the results.
-    """
+    """Export one checkpoint to all requested formats and record the results."""
     options = options or ExportOptions()
     if not (options.onnx or options.tflite):
         raise ValueError("Nothing to export: enable onnx and/or tflite")
@@ -70,11 +69,17 @@ def export_checkpoint(
 
     artifacts: dict[str, Path] = {}
     if options.onnx:
-        artifacts |= export_onnx_models(model, sample_input, calibration_inputs, run_dir, options.onnx_opset)
+        artifacts |= export_onnx_models(
+            model, sample_input, calibration_inputs, run_dir, options.onnx_opset
+        )
     if options.tflite:
         artifacts |= export_tflite_models(model, sample_input, calibration_inputs, run_dir)
 
-    maes = evaluate_tflite_models(artifacts, checkpoint, input_shape) if options.tflite and options.evaluate else {}
+    maes = (
+        evaluate_tflite_models(artifacts, checkpoint, input_shape)
+        if options.tflite and options.evaluate
+        else {}
+    )
     record_export(run_dir, name.as_posix(), checkpoint, list(artifacts.values()), maes)
     return artifacts
 
@@ -100,9 +105,13 @@ def export_onnx_models(
     opset_version: int,
 ) -> dict[str, Path]:
     """Export the FP32 ONNX model and its statically quantized INT8 QDQ version."""
-    fp32_path = export_onnx(model, sample_input, _artifact_path(run_dir, FP32, ".onnx"), opset_version)
+    fp32_path = export_onnx(
+        model, sample_input, _artifact_path(run_dir, FP32, ".onnx"), opset_version
+    )
     _print_saved("ONNX FP32", fp32_path)
-    int8_path = quantize_onnx_int8_qdq(fp32_path, _artifact_path(run_dir, INT8_QDQ, ".onnx"), calibration_inputs)
+    int8_path = quantize_onnx_int8_qdq(
+        fp32_path, _artifact_path(run_dir, INT8_QDQ, ".onnx"), calibration_inputs
+    )
     _print_saved("ONNX INT8 QDQ", int8_path)
     return {"onnx_fp32": fp32_path, "onnx_int8_qdq": int8_path}
 
@@ -114,10 +123,14 @@ def export_tflite_models(
     run_dir: Path,
 ) -> dict[str, Path]:
     """Convert the model to FP32 TFLite, check it against PyTorch, then quantize to full INT8."""
-    fp32_path, edge_model = export_tflite(model, sample_input, _artifact_path(run_dir, FP32, ".tflite"))
+    fp32_path, edge_model = export_tflite(
+        model, sample_input, _artifact_path(run_dir, FP32, ".tflite")
+    )
     _print_saved("TFLite FP32", fp32_path)
     _check_tflite_matches_pytorch(model, edge_model, sample_input)
-    int8_path = quantize_tflite_full_int8(fp32_path, _artifact_path(run_dir, INT8_FULL, ".tflite"), calibration_inputs)
+    int8_path = quantize_tflite_full_int8(
+        fp32_path, _artifact_path(run_dir, INT8_FULL, ".tflite"), calibration_inputs
+    )
     _print_saved("TFLite INT8 full", int8_path)
     return {"tflite_fp32": fp32_path, "tflite_int8_full": int8_path}
 
@@ -163,7 +176,9 @@ def export_onnx(
     return output_path
 
 
-def export_tflite(model: nn.Module, sample_input: torch.Tensor, output_path: Path) -> tuple[Path, Any]:
+def export_tflite(
+    model: nn.Module, sample_input: torch.Tensor, output_path: Path
+) -> tuple[Path, Any]:
     """Convert the PyTorch model to FP32 TFLite; returns the path and the in-memory edge model."""
     import litert_torch
 
@@ -172,7 +187,9 @@ def export_tflite(model: nn.Module, sample_input: torch.Tensor, output_path: Pat
     return output_path, edge_model
 
 
-def _check_tflite_matches_pytorch(model: nn.Module, edge_model: Any, sample_input: torch.Tensor) -> None:
+def _check_tflite_matches_pytorch(
+    model: nn.Module, edge_model: Any, sample_input: torch.Tensor
+) -> None:
     """Print the largest output difference between PyTorch and the converted TFLite model."""
     with torch.inference_mode():
         torch_output = model(sample_input).cpu().numpy()

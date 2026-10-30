@@ -54,7 +54,9 @@ def write_model_sources(tflite_path: Path, output_dir: Path) -> tuple[Path, Path
     return header_path, source_path
 
 
-def write_test_samples(features: np.ndarray, targets: np.ndarray, output_dir: Path) -> tuple[Path, Path]:
+def write_test_samples(
+    features: np.ndarray, targets: np.ndarray, output_dir: Path
+) -> tuple[Path, Path]:
     """Write test inputs as ``data.hpp`` (firmware) and ``test_samples_<n>.npy`` (Jetson/PC).
 
     The ground truth is included so the firmware output can be checked by eye.
@@ -85,7 +87,7 @@ def write_test_samples(features: np.ndarray, targets: np.ndarray, output_dir: Pa
 def _c_byte_rows(data: bytes) -> str:
     """Format bytes as indented C hex literals, ``BYTES_PER_LINE`` per line."""
     lines = (
-        "    " + ", ".join(f"0x{byte:02x}" for byte in data[start:start + BYTES_PER_LINE])
+        "    " + ", ".join(f"0x{byte:02x}" for byte in data[start : start + BYTES_PER_LINE])
         for start in range(0, len(data), BYTES_PER_LINE)
     )
     return ",\n".join(lines)

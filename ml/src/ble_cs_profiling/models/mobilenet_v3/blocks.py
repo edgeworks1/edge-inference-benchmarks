@@ -49,7 +49,9 @@ class InvertedResidualConfig:
     stride: int
 
 
-def block_configs(rows: Sequence[BlockRow], scale: Callable[[int], int] = lambda c: c) -> list[InvertedResidualConfig]:
+def block_configs(
+    rows: Sequence[BlockRow], scale: Callable[[int], int] = lambda c: c
+) -> list[InvertedResidualConfig]:
     """Turn a block table into configs, scaling both channel counts with ``scale``."""
     return [
         InvertedResidualConfig(kernel, scale(expanded), scale(out), use_se, use_hs, stride)
@@ -124,13 +126,23 @@ class InvertedResidual2D(nn.Module):
             layers.append(ConvNormActivation(in_channels, expanded, 1, activation=activation))
         layers.append(
             ConvNormActivation(
-                expanded, expanded, config.kernel, stride=config.stride, groups=expanded, activation=activation,
+                expanded,
+                expanded,
+                config.kernel,
+                stride=config.stride,
+                groups=expanded,
+                activation=activation,
             )
         )
         if config.use_se:
             layers.append(SqueezeExcitation2D(expanded, squeeze_channels))
         # Linear projection: no activation, it would destroy information in the narrow output
-        layers.append(nn.Sequential(nn.Conv2d(expanded, config.out_channels, 1, bias=False), nn.BatchNorm2d(config.out_channels)))
+        layers.append(
+            nn.Sequential(
+                nn.Conv2d(expanded, config.out_channels, 1, bias=False),
+                nn.BatchNorm2d(config.out_channels),
+            )
+        )
 
         self.block = nn.Sequential(*layers)
         self.use_residual = config.stride == 1 and in_channels == config.out_channels
@@ -164,11 +176,17 @@ class MobileNetV3Regressor2D(nn.Module):
         self.image_height = image_height
         self.image_width = image_width
 
-        layers: list[nn.Module] = [ConvNormActivation(1, stem_channels, 3, stride=stem_stride, activation=nn.Hardswish)]
+        layers: list[nn.Module] = [
+            ConvNormActivation(1, stem_channels, 3, stride=stem_stride, activation=nn.Hardswish)
+        ]
         channels = stem_channels
         for config in blocks:
             activation = _block_activation(config, block_activation)
-            layers.append(InvertedResidual2D(channels, config, activation, squeeze_channels(config.expanded_channels)))
+            layers.append(
+                InvertedResidual2D(
+                    channels, config, activation, squeeze_channels(config.expanded_channels)
+                )
+            )
             channels = config.out_channels
         layers.append(ConvNormActivation(channels, last_conv_channels, 1, activation=nn.Hardswish))
 
@@ -195,7 +213,9 @@ class MobileNetV3Regressor2D(nn.Module):
         elif x.ndim == 3:
             x = x.unsqueeze(1)
         if tuple(x.shape[1:]) != expected_shape:
-            raise ValueError(f"Expected input (batch, 300), (batch, 4, 75) or (batch, 1, 4, 75), got {tuple(x.shape)}")
+            raise ValueError(
+                f"Expected input (batch, 300), (batch, 4, 75) or (batch, 1, 4, 75), got {tuple(x.shape)}"
+            )
         return x
 
     def _initialize_weights(self) -> None:
@@ -213,7 +233,9 @@ class MobileNetV3Regressor2D(nn.Module):
                 nn.init.zeros_(module.bias)
 
 
-def _block_activation(config: InvertedResidualConfig, block_activation: BlockActivation) -> type[nn.Module]:
+def _block_activation(
+    config: InvertedResidualConfig, block_activation: BlockActivation
+) -> type[nn.Module]:
     """HardSwish where the block table asks for it, unless all blocks are forced to ReLU."""
     if block_activation == "relu":
         return nn.ReLU

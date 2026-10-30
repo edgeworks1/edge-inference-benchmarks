@@ -4,7 +4,12 @@ Compared to MobileNetV3-Small: no stride in the stem, fewer and narrower blocks,
 smaller last conv and head (96 -> 64 instead of 576 -> 1024).
 """
 
-from ble_cs_profiling.models.mobilenet_v3.blocks import BlockRow, MobileNetV3Regressor2D, block_configs, make_divisible
+from ble_cs_profiling.models.mobilenet_v3.blocks import (
+    BlockRow,
+    MobileNetV3Regressor2D,
+    block_configs,
+    make_divisible,
+)
 
 # (kernel, expanded_channels, out_channels, use_se, use_hs, stride)
 # Height x width: 4 x 75 -> stride 2 -> 2 x 38 -> stride 2 -> 1 x 19, then stride 1
