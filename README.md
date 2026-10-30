@@ -7,6 +7,9 @@ The focus is on deployment constraints (size, memory, latency), not on squeezing
 
 Everything runs in Docker. The host only needs Docker (plus J-Link tools for the real board).
 
+**New to edge AI?** Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first (German): how such a
+project is structured, why, and how to transfer it to your own data, models and hardware.
+
 ## Pipeline
 
 ```
