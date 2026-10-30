@@ -123,3 +123,8 @@ nRF5340 DK (1 MB flash, 448 KB app RAM, 128 KB arena). Details: [firmware/nrf534
 VS Code → **Dev Containers: Reopen in Container** gives the `dev` stage of `ml/Dockerfile`
 (GPU torch, pytest, ruff, debugger; launch configs in `.vscode/launch.json`). Its Python
 environment is read-only: add packages with `uv add --no-sync <package>`, then rebuild the container.
+
+Code style is enforced with [ruff](https://docs.astral.sh/ruff/) (configured in `ml/pyproject.toml`):
+`make -C ml format` formats and applies safe fixes, `make -C ml check` only reports. Run `check`
+before every commit; the dev container formats on save. Once per clone, let `git blame` skip
+pure formatting commits: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.

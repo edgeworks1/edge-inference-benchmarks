@@ -32,5 +32,8 @@ more than a few lines:
 - Everything runs in Docker from the repo root (WSL/Linux): `make -C ml help`,
   `make -C firmware/nrf5340 <target>`, or `docker compose run --rm ml <ble-cs command>`.
 - After changing code in `ml/`, rebuild the image (`make -C ml images`), otherwise the old code runs.
+- Before proposing a commit, run `make -C ml check` (ruff format + lint) and fix all findings; prefer
+  rewriting a long line over `# noqa`. Every public function, class and module needs a short
+  docstring (one or two sentences, no Args/Returns sections) and type hints.
 - `ml/` (Python package) and `firmware/` don't know each other; only the Makefiles connect them
   (generated C sources → firmware, `run.json` → `ble-cs results record`).

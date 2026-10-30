@@ -1,0 +1,6 @@
+# Commits that only reformat code. `git blame` and GitHub skip them, so blame still shows
+# the commit that actually changed a line. Only list purely mechanical commits here.
+# Locally once per clone: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style(ml): apply ruff format
+abd7ceb3b48b34dfdcb49585282510e4ad4d840d

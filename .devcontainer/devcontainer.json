@@ -1,36 +1,36 @@
-// Dev Container für VS Code: "Dev Containers: Reopen in Container"
-// Baut die Stage "dev" aus ml/Dockerfile (GPU-Variante) und hängt das Repo unter /workspace ein.
+// VS Code dev container: "Dev Containers: Reopen in Container"
+// Builds the "dev" stage of ml/Dockerfile (GPU variant) and mounts the repo at /workspace.
 {
   "name": "BLE CS profiling (dev, GPU)",
 
-  // ---- Bauen (entspricht docker build) ----
-  // Pfade sind relativ zu dieser Datei
+  // ---- Build (like docker build) ----
+  // Paths are relative to this file
   "build": {
     "dockerfile": "../ml/Dockerfile",
     "context": "../ml",
-    "target": "dev", // baue bis zur Stage "dev" aber nicht weiter
+    "target": "dev", // build up to the "dev" stage, not further
     "args": { "TORCH_VARIANT": "cu130" }
   },
 
-  // ---- Starten (entspricht docker run) ----
-  // Repo unter /workspace, NICHT unter /app: dort liegt die venv aus der base-Stage
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind", // localWorkspaceFolder ist der Pfad auf dem Host (mein PC), target ist der Pfad im Container
+  // ---- Run (like docker run) ----
+  // Repo at /workspace, NOT at /app: the venv from the base stage lives there
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind", // localWorkspaceFolder = path on the host
   "workspaceFolder": "/workspace",
   "runArgs": ["--gpus=all"],
 
-  // Benannte Volumes (von Docker verwaltet, nicht im Repo): überleben "Rebuild Container"
+  // Named volumes (managed by Docker, not in the repo): survive "Rebuild Container"
   "mounts": [
     "source=ble-cs-bashhistory,target=/commandhistory,type=volume",
     "source=ble-cs-cache,target=/home/app/.cache,type=volume"
   ],
 
-  // VS Code arbeitet als User "app" (im Image angelegt, UID 1000 wie dein WSL-User)
+  // VS Code runs as user "app" (created in the image with UID 1000, like a typical WSL user)
   "remoteUser": "app",
 
-  // ---- VS Code im Container ----
+  // ---- VS Code inside the container ----
   "customizations": {
     "vscode": {
-      // Werden automatisch im Container installiert (nicht auf dem Host)
+      // Installed automatically inside the container (not on the host)
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
@@ -42,12 +42,18 @@
         "lucien-martijn.parquet-visualizer"
       ],
       "settings": {
-        // venv aus der base-Stage, nicht die Host-venv unter /workspace/ml/.venv
+        // venv from the base stage, not the host venv at /workspace/ml/.venv
         "python.defaultInterpreterPath": "/app/.venv/bin/python",
-        // venv liegt schon im PATH (Dockerfile) -> VS Code muss nicht nochmal die venv aktivieren
+        // The venv is already on PATH (Dockerfile), VS Code does not need to activate it
         "python.terminal.activateEnvironment": false,
-        // ruff-Version aus uv.lock benutzen statt der in die ruff-Extension eingebauten eigenen Version, damit es reproduzierbar bleibt
-        "ruff.importStrategy": "fromEnvironment"
+        // Use the ruff version from uv.lock instead of the one bundled with the extension
+        "ruff.importStrategy": "fromEnvironment",
+        // Format and sort imports on save, with the same rules as `make -C ml check`
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": { "source.organizeImports.ruff": "explicit" }
+        }
       }
     }
   }

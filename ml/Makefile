@@ -51,7 +51,7 @@ help:
 	@echo "Code quality:"
 	@echo "  format       format code and apply safe lint fixes (changes files)"
 	@echo "  lint         report lint findings"
-	@echo "  check        formatting + lint, changes nothing (what CI runs)"
+	@echo "  check        formatting + lint, changes nothing (run before committing)"
 	@echo "Other: models, images"
 	@echo "Parameters: M=$(M) GPU=$(GPU) EVAL=$(EVAL) [CKPT=...] [TFLITE=...]"
 
