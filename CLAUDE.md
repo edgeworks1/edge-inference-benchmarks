@@ -13,9 +13,16 @@ more than a few lines:
 
 1. **Plan first:** explain the goal and split it into numbered sub-steps. Each step is small
    (roughly ≤ 30–50 changed lines), self-contained and testable on its own.
-2. **One step at a time:** implement only the current step. Then explain what changed and
-   *why*, and give the command to verify it (and run it, if possible).
-3. **Wait** for the user before starting the next step. Only if the user explicitly states to do everything at once, do so, otherwise follow the substep rule always.
+2. **One step at a time:** Implement only the current step. Ensure each step is an atomic, self-contained functional change that leaves the codebase buildable, working, and testable (no broken intermediate states).
+
+	Then:
+
+
+1. Explain what changed and *why*.
+2. If possible: Provide the verification command (and run it, if possible).
+3. Provide a strictly formatted Conventional Commit message: Header: `<type>(<scope>): <concise imperative summary>` (max 100 chars)
+
+   **Wait** for the user before starting the next step. Only if the user explicitly states to do everything at once, do so, otherwise follow the substep rule always.
 4. Prefer the simple, readable solution over a clever one. Match the existing code style and place great importance on readable code, using helper methods, clean architecture ...
 5. Avoid emojis/smileys/other unusual things in the code.
 6. After providing the code changes, do not write a standard summary. Instead, include an "Active Recall & Verification" section with approx. 3 targeted technical questions about the implementation (e.g. edge cases, trade-offs, performance, or language-specific mechanics). Provide the answer to those questions immediately after the question.
