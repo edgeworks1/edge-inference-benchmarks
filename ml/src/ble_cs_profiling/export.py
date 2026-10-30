@@ -12,7 +12,7 @@ import torch
 from torch import nn
 
 from ble_cs_profiling import config as cfg
-from ble_cs_profiling.models import build_model
+from ble_cs_profiling.checkpoint import load_checkpoint
 from ble_cs_profiling.data import load_calibration_inputs, load_eval_set
 from ble_cs_profiling.quantization import evaluate_tflite, quantize_full_int8
 from ble_cs_profiling.results import record_export
@@ -24,30 +24,6 @@ class ExportOptions:
     tflite: bool = True  # FP32 + full INT8 TFLite (integer-only incl. I/O for TFLM)
     onnx_opset: int = 13
     evaluate: bool = True  # MAE of both TFLite artifacts on the eval set
-
-
-def load_checkpoint(path: Path) -> tuple[nn.Module, dict[str, Any]]:
-    """Rebuild a model from its metadata and load its trained weights."""
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Checkpoint not found: {path}\nRun `ble-cs train` first."
-        )
-    
-    # Export vermeidet GPU-abhängige Artefakte, daher immer auf CPU laden
-    try:
-        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    except TypeError:
-        # Compatibility with PyTorch versions that predate weights_only.
-        checkpoint = torch.load(path, map_location="cpu")
-
-    required_keys = {"model_name", "model_kwargs", "model_state_dict"}
-    missing = required_keys - checkpoint.keys()
-    if missing:
-        raise ValueError(f"Invalid checkpoint; missing keys: {sorted(missing)}")
-
-    model = build_model(checkpoint["model_name"], checkpoint["model_kwargs"])
-    model.load_state_dict(checkpoint["model_state_dict"], strict=True)
-    return model.cpu().eval(), checkpoint
 
 
 def export_onnx(
