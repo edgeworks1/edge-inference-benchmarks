@@ -1,1 +1,1 @@
-"""Training, quantization and edge deployment profiling of BLE channel sounding models."""
+"""Train, quantize and deploy BLE channel sounding distance models to edge hardware."""

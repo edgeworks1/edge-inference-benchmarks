@@ -1,4 +1,4 @@
-"""Allows ``python -m ble_cs_profiling`` as an alternative to the ``ble-cs`` command."""
+"""Run the CLI as ``python -m ble_cs_profiling`` (same as the ``ble-cs`` command)."""
 
 from ble_cs_profiling.cli import app
 

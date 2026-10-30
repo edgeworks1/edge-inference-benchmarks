@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import torch
 from torch import nn
 
 from ble_cs_profiling import config as cfg
 from ble_cs_profiling.models import build_model
-from ble_cs_profiling.quantization import evaluate_tflite, load_features, quantize_full_int8
+from ble_cs_profiling.data import load_calibration_inputs, load_eval_set
+from ble_cs_profiling.quantization import evaluate_tflite, quantize_full_int8
 from ble_cs_profiling.results import record_export
 
 
@@ -78,21 +78,6 @@ def export_onnx(
     )
     print(f"ONNX gespeichert:  {output_path} ({output_path.stat().st_size / 1024:.1f} KiB)")
     return output_path
-
-
-def load_calibration_inputs(
-    checkpoint: dict[str, Any],
-    input_shape: tuple[int, ...],
-) -> np.ndarray:
-    """Select CALIBRATION_SAMPLES reproducible training samples for all deployment formats."""
-    feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
-    training_inputs = load_features(cfg.TRAIN_DATA_PATH, feature_names)
-    if len(training_inputs) == 0:
-        raise ValueError("Calibration training data must be nonempty")
-    indices = np.random.default_rng(cfg.SEED).choice(
-        len(training_inputs), min(cfg.CALIBRATION_SAMPLES, len(training_inputs)), replace=False,
-    )
-    return training_inputs[indices].reshape((-1, *input_shape[1:]))
 
 
 def quantize_onnx_int8(
@@ -205,7 +190,8 @@ def export_checkpoint(
         print(f"Gespeicherter Eval-MAE: {checkpoint['eval_mae']:.4f} m")
 
     # Wird für Quantisierung benötigt; einmal laden, für ONNX und TFLite wiederverwenden
-    calibration_inputs = load_calibration_inputs(checkpoint, input_shape)
+    feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
+    calibration_inputs = load_calibration_inputs(feature_names).reshape((-1, *input_shape[1:]))
 
     artifacts: dict[str, Path] = {}
     maes: dict[Path, float] = {}
@@ -229,12 +215,8 @@ def export_checkpoint(
         )
 
         if options.evaluate:
-            feature_names = checkpoint.get("feature_names", list(cfg.FEATURES_RAW_IQ_ALL))
-            target_name = checkpoint.get("target", cfg.TARGET)
-            eval_inputs = load_features(cfg.EVAL_DATA_PATH, feature_names).reshape(
-                (-1, *input_shape[1:])
-            )
-            targets = pd.read_parquet(cfg.EVAL_DATA_PATH, columns=[target_name])[target_name].to_numpy()
+            eval_inputs, targets = load_eval_set(feature_names, checkpoint.get("target", cfg.TARGET))
+            eval_inputs = eval_inputs.reshape((-1, *input_shape[1:]))
             for path in artifacts.values():
                 if path.suffix == ".tflite":
                     maes[path] = evaluate_tflite(path, eval_inputs, targets)

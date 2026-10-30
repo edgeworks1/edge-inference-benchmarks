@@ -1,4 +1,4 @@
-"""Model definitions and the registry used by training and export."""
+"""Model architectures and the registry that training and export share."""
 
 from ble_cs_profiling.models.registry import MODELS, build_model
 

@@ -14,13 +14,13 @@ os.environ["PYTHONHASHSEED"] = "42"
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import mean_absolute_error
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from ble_cs_profiling import config as cfg
+from ble_cs_profiling.data import load_eval_set, load_training_set
 from ble_cs_profiling.models import build_model
 
 
@@ -51,29 +51,13 @@ def set_seed(seed: int) -> None:
 
 
 def load_data() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, np.ndarray]:
-    """Load IQ features and draw a reproducible training subset (cfg.TRAIN_SAMPLE_RATE)."""
-    train_df = pd.read_parquet(cfg.TRAIN_DATA_PATH)
-    eval_df = pd.read_parquet(cfg.EVAL_DATA_PATH)
-    complete_train_size = len(train_df)
-    if cfg.TRAIN_SAMPLE_RATE < 1.0:
-        sample_size = max(1, round(complete_train_size * cfg.TRAIN_SAMPLE_RATE))
-        train_df = train_df.sample(n=sample_size, random_state=cfg.SEED)
-
-    print(
-        f"Trainingsdaten: {len(train_df):,}/{complete_train_size:,} Samples "
-        f"({len(train_df) / complete_train_size:.1%})"
-    )
-    x_train = torch.tensor(
-        train_df[cfg.FEATURES_RAW_IQ_ALL].values, dtype=torch.float32
-    )
-    y_train = torch.tensor(
-        train_df[cfg.TARGET].values, dtype=torch.float32
-    ).unsqueeze(1)
-    x_eval = torch.tensor(
-        eval_df[cfg.FEATURES_RAW_IQ_ALL].values, dtype=torch.float32
-    )
-    y_eval = eval_df[cfg.TARGET].to_numpy()
-    return x_train, y_train, x_eval, y_eval
+    """Return training features/targets and evaluation features as tensors, eval targets as array."""
+    train_features, train_targets = load_training_set()
+    eval_features, eval_targets = load_eval_set(cfg.FEATURES_RAW_IQ_ALL, cfg.TARGET)
+    x_train = torch.from_numpy(train_features)
+    y_train = torch.from_numpy(train_targets).unsqueeze(1)
+    x_eval = torch.from_numpy(eval_features)
+    return x_train, y_train, x_eval, eval_targets
 
 
 def run_model(model: nn.Module) -> RunResult:

@@ -5,11 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
-
-
-def load_features(path: Path, feature_names: list[str]) -> np.ndarray:
-    return pd.read_parquet(path, columns=feature_names).to_numpy(dtype=np.float32)
 
 
 def quantize_full_int8(
