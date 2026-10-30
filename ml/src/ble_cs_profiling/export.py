@@ -21,7 +21,8 @@ from torch import nn
 from ble_cs_profiling import config as cfg
 from ble_cs_profiling.checkpoint import load_checkpoint
 from ble_cs_profiling.data import load_calibration_inputs, load_eval_set
-from ble_cs_profiling.quantization import evaluate_tflite, quantize_full_int8
+from ble_cs_profiling.evaluation import evaluate_tflite
+from ble_cs_profiling.quantization import quantize_onnx_int8_qdq, quantize_tflite_full_int8
 from ble_cs_profiling.results import record_export
 
 FP32 = "fp32_full"
@@ -100,7 +101,9 @@ def export_onnx_models(
 ) -> dict[str, Path]:
     """Export the FP32 ONNX model and its statically quantized INT8 QDQ version."""
     fp32_path = export_onnx(model, sample_input, _artifact_path(run_dir, FP32, ".onnx"), opset_version)
-    int8_path = quantize_onnx_int8(fp32_path, _artifact_path(run_dir, INT8_QDQ, ".onnx"), calibration_inputs)
+    _print_saved("ONNX FP32", fp32_path)
+    int8_path = quantize_onnx_int8_qdq(fp32_path, _artifact_path(run_dir, INT8_QDQ, ".onnx"), calibration_inputs)
+    _print_saved("ONNX INT8 QDQ", int8_path)
     return {"onnx_fp32": fp32_path, "onnx_int8_qdq": int8_path}
 
 
@@ -112,8 +115,10 @@ def export_tflite_models(
 ) -> dict[str, Path]:
     """Convert the model to FP32 TFLite, check it against PyTorch, then quantize to full INT8."""
     fp32_path, edge_model = export_tflite(model, sample_input, _artifact_path(run_dir, FP32, ".tflite"))
+    _print_saved("TFLite FP32", fp32_path)
     _check_tflite_matches_pytorch(model, edge_model, sample_input)
-    int8_path = quantize_full_int8(fp32_path, _artifact_path(run_dir, INT8_FULL, ".tflite"), calibration_inputs)
+    int8_path = quantize_tflite_full_int8(fp32_path, _artifact_path(run_dir, INT8_FULL, ".tflite"), calibration_inputs)
+    _print_saved("TFLite INT8 full", int8_path)
     return {"tflite_fp32": fp32_path, "tflite_int8_full": int8_path}
 
 
@@ -155,35 +160,6 @@ def export_onnx(
         dynamic_axes={ONNX_INPUT_NAME: {0: "batch"}, ONNX_OUTPUT_NAME: {0: "batch"}},
         external_data=False,
     )
-    _print_saved("ONNX FP32", output_path)
-    return output_path
-
-
-def quantize_onnx_int8(fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray) -> Path:
-    """Quantize an ONNX model statically to INT8 (QDQ format, per-channel weights, float I/O)."""
-    from tempfile import TemporaryDirectory
-
-    from onnxruntime.quantization import QuantFormat, QuantType, quantize_static
-    from onnxruntime.quantization.shape_inference import quant_pre_process
-
-    if len(calibration_inputs) == 0 or not np.isfinite(calibration_inputs).all():
-        raise ValueError("Calibration inputs must be nonempty and finite")
-
-    with TemporaryDirectory() as temporary:
-        prepared_path = Path(temporary) / "prepared.onnx"
-        # ONNX Runtime's symbolic shape inference fails on the MobileNet conv shapes,
-        # standard ONNX shape inference and graph optimization are sufficient.
-        quant_pre_process(str(fp32_path), str(prepared_path), skip_symbolic_shape=True)
-        quantize_static(
-            str(prepared_path),
-            str(output_path),
-            _OnnxCalibrationReader(calibration_inputs),
-            quant_format=QuantFormat.QDQ,
-            activation_type=QuantType.QInt8,
-            weight_type=QuantType.QInt8,
-            per_channel=True,
-        )
-    _print_saved("ONNX INT8 QDQ", output_path)
     return output_path
 
 
@@ -193,7 +169,6 @@ def export_tflite(model: nn.Module, sample_input: torch.Tensor, output_path: Pat
 
     edge_model = litert_torch.convert(model, (sample_input,))
     edge_model.export(str(output_path))
-    _print_saved("TFLite FP32", output_path)
     return output_path, edge_model
 
 
@@ -204,20 +179,6 @@ def _check_tflite_matches_pytorch(model: nn.Module, edge_model: Any, sample_inpu
     edge_output = np.asarray(edge_model(sample_input))
     max_difference = float(np.max(np.abs(torch_output - edge_output)))
     print(f"TFLite vs. PyTorch, max. absolute difference: {max_difference:.6g}")
-
-
-class _OnnxCalibrationReader:
-    """Feeds the calibration samples one by one to ONNX Runtime's static quantization."""
-
-    def __init__(self, calibration_inputs: np.ndarray) -> None:
-        self._samples = iter(calibration_inputs)
-
-    def get_next(self) -> dict[str, np.ndarray] | None:
-        """Return the next sample as a batch of one, or None when all samples are used."""
-        sample = next(self._samples, None)
-        if sample is None:
-            return None
-        return {ONNX_INPUT_NAME: np.asarray(sample[None, ...], dtype=np.float32)}
 
 
 def _calibration_inputs(checkpoint: dict[str, Any], input_shape: tuple[int, ...]) -> np.ndarray:
