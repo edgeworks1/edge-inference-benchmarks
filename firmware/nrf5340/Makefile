@@ -10,7 +10,7 @@
 #   make console  UART-Konsole des App-Kerns mitlesen (Ctrl+C beendet)
 #   make clean    alle Build-Ordner löschen
 #
-# Parameter: SNR=<J-Link-Seriennummer> (Default 601er DK), VARIANT=<Build-Ordner> (Default hil)
+# Parameter: SNR=<J-Link-Seriennummer> (Default: erstes angeschlossenes DK), VARIANT=<Build-Ordner> (Default hil)
 #
 # Aufruf aus dem Repo-Root: make -C firmware/nrf5340 <target>
 
@@ -20,12 +20,11 @@ BOARD := nrf5340dk_nrf5340_cpuapp
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE := docker compose -f $(HERE)../../compose.yaml
 
-# Welches DK (Seriennummer auf dem J-Link-Aufkleber / `nrfutil device list`)
-SNR     ?= 1050025601
 VARIANT ?= hil
-# Konsole des App-Kerns = Interface 02 (vcom 1); if00 gehört zum Netzkern.
-# by-id statt ttyACMx: bleibt gleich, egal in welcher Reihenfolge DKs erkannt werden.
-UART    := /dev/serial/by-id/usb-SEGGER_J-Link_00$(SNR)-if02
+# Board detection, flashing and UART capture live in scripts/dk.sh (runs natively in WSL).
+# Optional SNR=<J-Link serial number> selects one of several connected DKs.
+DK      := $(HERE)scripts/dk.sh
+export SNR
 
 # -p auto: pristine nur wenn nötig (z. B. anderes Board)
 WEST_BUILD := $(COMPOSE) run --rm fw west build -b $(BOARD) -p auto --no-sysbuild
@@ -48,24 +47,15 @@ sim: renode
 hil:
 	$(WEST_BUILD) -d build/hil
 
-# Löscht nur die Flash-Bereiche, die das Image belegt (Netzkern-Image bleibt unberührt)
 flash:
-	nrfutil device program --serial-number $(SNR) \
-		--firmware $(HERE)build/$(VARIANT)/zephyr/zephyr.hex \
-		--options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE
-	nrfutil device reset --serial-number $(SNR)
+	$(DK) flash $(HERE)build/$(VARIANT)/zephyr/zephyr.hex
 
-# UART schon vor dem Flashen mitlesen (sonst fehlt der Anfang), bei der RESULT-Zeile aufhören.
-# timeout: Firmware hängt/stürzt ab -> Fehler statt ewig warten.
 measure: hil
-	stty -F $(UART) 115200 raw -echo
-	timeout 30 sed '/RESULT /q' $(UART) > $(HERE)build/hil/uart.log & \
-	$(MAKE) --no-print-directory flash VARIANT=hil && wait $$!
+	$(DK) measure $(HERE)build/hil/zephyr/zephyr.hex $(HERE)build/hil/uart.log
 	$(call RECORD,nrf5340dk,hil)
 
 console:
-	stty -F $(UART) 115200 raw -echo
-	cat $(UART)
+	$(DK) console
 
 clean:
 	rm -rf $(HERE)build

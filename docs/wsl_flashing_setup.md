@@ -144,7 +144,7 @@ nrfutil device list
 Erwartet (wichtig: `jlink` in `Traits`, keine Warnung „No SEGGER J-Link install found“):
 
 ```
-1050025601
+<SNR>
 Product         J-Link
 Board version   PCA10095
 Ports           /dev/ttyACM0, vcom: 0
@@ -177,9 +177,10 @@ make -C firmware/nrf5340 console [SNR=…]                # UART des App-Kerns m
 Direkt mit nrfutil:
 
 ```bash
-nrfutil device program --serial-number 1050025601 --firmware build/hil/zephyr/zephyr.hex \
+# <SNR> = Seriennummer aus `nrfutil device list` (steht auch auf dem J-Link-Aufkleber)
+nrfutil device program --serial-number <SNR> --firmware build/hil/zephyr/zephyr.hex \
   --options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE
-nrfutil device reset --serial-number 1050025601
+nrfutil device reset --serial-number <SNR>
 nrfutil --json device program …     # maschinenlesbarer Fortschritt für Skripte
 ```
 
