@@ -1,30 +1,30 @@
 :name: nRF5340 TFLM Profiler
-:description: Simuliert nRF5340 M33 mit vergrößertem RAM/Flash
+:description: Simulates the nRF5340 M33 with enlarged RAM/flash
 
 $name?="nrf5340dk_nrf5340_cpuapp"
-# $ORIGIN = Ordner dieses Skripts -> unabhängig vom aktuellen Verzeichnis (ohne @, sonst wörtlich)
+# $ORIGIN = folder of this script -> independent of the current directory (no @, it would be taken literally)
 $repl?=$ORIGIN/cortex_m33_profiler.repl
-# ELF der Renode-Variante (west build -d build/renode -S renode)
+# ELF of the Renode variant (west build -d build/renode -S renode)
 $bin?=$ORIGIN/../build/renode/zephyr/zephyr.elf
 
 using sysbus
 mach create $name
 machine LoadPlatformDescription $repl
 
-# Core Performance auf 128 MHz skalieren
+# Scale the core performance to 128 MHz
 cpu0 PerformanceInMips 128
 
-# Sysbus & Clock Warnings stummschalten (Level 3 = Error)
+# Silence sysbus and clock warnings (level 3 = error)
 logLevel 3 sysbus
 logLevel 3 clock
 
-# Stummschalten des undefinierten Peripherie-Bereichs (0x50015000 - 0x50015FFF)
+# Silence the unmodelled peripheral range (0x50015000 - 0x50015FFF)
 sysbus SilenceRange <0x50015000 0x1000>
 
-# UART-Ausgabe ins Terminal leiten
+# Route the UART output to the terminal
 showAnalyzer uart0 Antmicro.Renode.Analyzers.LoggingUartAnalyzer
 
-# Panic Hook fängt Abstürze sauber ab
+# Panic hook: report kernel faults instead of hanging silently
 set osPanicHook
 """
 self.ErrorLog("OS Panicked / Kernel Fault!")
@@ -40,5 +40,5 @@ macro reset
 
 runMacro $reset
 
-echo "Starte Simulation..."
+echo "Starting simulation..."
 start

@@ -9,5 +9,5 @@ src/data.hpp
 serial_logs/
 *.log
 
-# Nebenprodukt von `ble-cs codegen samples` (für Jetson/PC, nicht für die Firmware)
+# By-product of `ble-cs codegen samples` (for Jetson/PC, not for the firmware)
 src/*.npy

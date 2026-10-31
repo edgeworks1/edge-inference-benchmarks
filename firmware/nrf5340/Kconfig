@@ -1,4 +1,4 @@
-# App-eigene Optionen. Werte setzen: prj.conf, Snippets oder -D<OPTION>=… beim Build.
+# Options of this app. Set values in prj.conf, in a snippet or with -D<OPTION>=... at build time.
 
 menu "BLE CS profiling app"
 
@@ -6,12 +6,12 @@ config APP_TENSOR_ARENA_SIZE
 	int "TFLM tensor arena size (bytes)"
 	default 131072
 	help
-	  Statischer Speicher für alle Tensoren der Inferenz (liegt im RAM/.bss).
-	  Default 128 KiB: passt auf das echte nRF5340 DK (448 KiB RAM für die App).
-	  Renode-Variante setzt hier mehr, um beliebig große Modelle zu testen.
-	  Tatsächlicher Bedarf: siehe "Total Arena: used / size" im UART-Log.
+	  Static memory for all tensors of the inference (placed in RAM/.bss).
+	  Default 128 KiB: fits the real nRF5340 DK (448 KiB RAM for the app).
+	  The Renode variant sets more to test models of any size.
+	  Actual need: see "Total Arena: used / size" in the UART log.
 
 endmenu
 
-# Muss am Ende stehen: lädt alle Zephyr-Optionen (sonst kennt Kconfig nur unsere)
+# Must stay at the end: loads all Zephyr options (otherwise Kconfig only knows ours)
 source "Kconfig.zephyr"

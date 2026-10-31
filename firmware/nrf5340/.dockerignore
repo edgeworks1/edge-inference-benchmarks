@@ -1,4 +1,3 @@
+# Allowlist: the image only needs the west manifest, the code is mounted at runtime
 *
-
-# Manifest für west
 !west.yml

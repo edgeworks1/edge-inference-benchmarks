@@ -1,16 +1,16 @@
 # =============================================================================
-# Build-Umgebung für nRF5340-Firmware (Zephyr RTOS / nRF Connect SDK v2.6.0)
-# Werkzeuge und SDK liegen im Image; Applikations-Code wird per Volume gemountet.
+# Build environment for the nRF5340 firmware (Zephyr RTOS / nRF Connect SDK v2.6.0)
+# Tools and SDK live in the image; the application code is mounted as a volume.
 # =============================================================================
 FROM python:3.11-slim-trixie AS build
 
-# Native Host-Tools für Zephyr (CMake, Ninja-Generator, Devicetree & Kconfig)
+# Native host tools for Zephyr (CMake, Ninja generator, devicetree and Kconfig)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         cmake ninja-build device-tree-compiler gperf git wget xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Zephyr SDK 0.16.5: Minimal-Bundle + ausschließlich ARM-Cortex-M Cross-Compiler
+# Zephyr SDK 0.16.5: minimal bundle plus only the ARM Cortex-M cross compiler (sha256-verified)
 ARG ZEPHYR_SDK_VERSION=0.16.5
 ARG SDK_URL=https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}
 RUN cd /tmp \
@@ -24,7 +24,7 @@ RUN cd /tmp \
 
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}
 
-# Python-Paketmanager (uv) & dedizierte venv für west
+# Python package manager (uv) and a dedicated venv for west
 COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/ncs/.venv/bin:$PATH"
 
-# NCS Workspace initialisieren (Shallow Clone spart Speicherplatz und Build-Zeit)
+# Initialize the NCS workspace (a shallow clone saves disk space and build time)
 WORKDIR /ncs
 COPY west.yml manifest/west.yml
 RUN west init -l manifest \
@@ -45,14 +45,15 @@ RUN west init -l manifest \
 
 ENV ZEPHYR_BASE=/ncs/zephyr
 
-# Python-Abhängigkeiten aus den SDK-Repos (Kconfiglib, pyelftools etc.)
+# Python dependencies of the SDK repos (Kconfiglib, pyelftools ...)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /ncs/.venv \
         -r zephyr/scripts/requirements.txt \
         -r nrf/scripts/requirements.txt \
         -r bootloader/mcuboot/scripts/requirements.txt
 
-# Non-Root-Setup: UID/GID 1000 verhindert Rechteprobleme mit gemounteten Host-Dateien
+# Non-root setup: UID/GID 1000 avoids permission problems with mounted host files.
+# safe.directory: git inside the container accepts the SDK repos owned by root.
 RUN git config --system --add safe.directory '/ncs/*'
 
 ARG UID=1000
@@ -65,14 +66,14 @@ WORKDIR /app
 USER app
 
 # =============================================================================
-# Stage "renode": Simulation des nRF5340 (unabhängig von SDK/Compiler -> schlankes Image)
-# Bekommt das fertige ELF über den Mount (build/), nicht aus der Build-Stage.
+# Stage "renode": nRF5340 simulation (independent of SDK and compiler -> small image)
+# Gets the built ELF through the mount (build/), not from the build stage.
 # =============================================================================
 FROM debian:trixie-slim AS renode
 
-# Portable-dotnet-Variante = gleiche wie lokal (bringt eigene .NET-Laufzeit mit)
-# libicu76: Unicode-Bibliothek, die .NET zur Laufzeit braucht (nicht im Paket enthalten)
-# wget/ca-certificates nur für den Download, danach wieder entfernt
+# Portable dotnet variant (ships its own .NET runtime), sha256-verified
+# libicu76: Unicode library that .NET needs at runtime (not included in the package)
+# wget is only needed for the download and removed afterwards
 ARG RENODE_VERSION=1.16.1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu76 ca-certificates wget \

@@ -1,5 +1,5 @@
-// cortex_m33_profiler.repl (nRF5340 Application Core mit 16MB Flash / 8MB RAM)
-// Muss zu snippets/renode/renode.overlay passen (gleiche Adressen und Größen)!
+// cortex_m33_profiler.repl (nRF5340 application core with 16 MB flash / 8 MB RAM)
+// Must match snippets/renode/renode.overlay (same addresses and sizes)!
 
 cpu0: CPU.CortexM @ sysbus
     cpuType: "cortex-m33"
@@ -11,28 +11,28 @@ nvic0: IRQControllers.NVIC @ {
     -> cpu0@0
     systickFrequency: 32768
 
-// 16 MB virtueller Flash (Original nRF5340: 0x100000 = 1 MB)
+// 16 MB virtual flash (real nRF5340: 0x100000 = 1 MB)
 flash0: Memory.MappedMemory @ sysbus 0x00000000
     size: 0x01000000
 
-// 8 MB virtueller SRAM (Original nRF5340: 0x80000 = 512 KB)
+// 8 MB virtual SRAM (real nRF5340: 0x80000 = 512 KB)
 sram0: Memory.MappedMemory @ sysbus 0x20000000
     size: 0x00800000
 
-// Nordic System Clocks (zwingend nötig für Zephyr Boot)
+// Nordic system clocks (required for the Zephyr boot)
 clock: Miscellaneous.NRF_CLOCK @ sysbus 0x50005000
     -> nvic0@5
 
-// Nordic UART (zwingend nötig für printk / printf)
+// Nordic UART (required for printk / printf)
 uart0: UART.NRF52840_UART @ sysbus 0x50008000
     easyDMA: true
     -> nvic0@8
 
-// Timer für Zephyr Kernel Ticks
+// Timer for the Zephyr kernel ticks
 rtc0: Timers.NRF52840_RTC @ sysbus 0x50014000
     numberOfEvents: 4
     -> nvic0@20
 
-// DWT für präzise Zykluszählung
+// DWT for precise cycle counting
 dwt: Miscellaneous.DWT @ sysbus 0xE0001000
     frequency: 128000000

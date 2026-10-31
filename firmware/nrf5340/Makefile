@@ -1,22 +1,22 @@
-# Einstiegspunkte für die nRF5340-Firmware.
-# Läuft auf dem Host (WSL); Build und Simulation passieren in Docker
-# (Dienste fw / renode aus compose.yaml im Repo-Root).
+# Entry points of the nRF5340 firmware.
+# Runs on the host (WSL/Linux); building and simulating happen in Docker
+# (services fw / renode from compose.yaml in the repo root), the DK is accessed natively.
 #
-#   make renode   Variante #1 (Renode) bauen     -> build/renode
-#   make sim      Variante #1 bauen + simulieren, Messwerte -> ml/outputs/<checkpoint>/results.json
-#   make hil      Variante #2 (echtes DK) bauen  -> build/hil
-#   make flash    build/$(VARIANT) aufs DK flashen + reset (nativ in WSL, nrfutil)
-#   make measure  Variante #2 bauen, flashen, UART mitschneiden, Messwerte -> results.json
-#   make console  UART-Konsole des App-Kerns mitlesen (Ctrl+C beendet)
-#   make clean    alle Build-Ordner löschen
+#   make renode   build variant #1 (Renode)          -> build/renode
+#   make sim      build #1 + simulate, record results -> ml/outputs/<checkpoint>/results.json
+#   make hil      build variant #2 (real DK)         -> build/hil
+#   make flash    flash build/$(VARIANT) to the DK and reset it
+#   make measure  build #2, flash, capture the UART, record results -> results.json
+#   make console  read the app core UART (Ctrl+C to stop)
+#   make clean    delete all build folders
 #
-# Parameter: SNR=<J-Link-Seriennummer> (Default: erstes angeschlossenes DK), VARIANT=<Build-Ordner> (Default hil)
+# Parameters: SNR=<J-Link serial number> (default: first connected DK), VARIANT=<build folder> (default hil)
 #
-# Aufruf aus dem Repo-Root: make -C firmware/nrf5340 <target>
+# Usage from the repo root: make -C firmware/nrf5340 <target>
 
 BOARD := nrf5340dk_nrf5340_cpuapp
 
-# Ordner dieses Makefiles -> funktioniert unabhängig vom aktuellen Verzeichnis
+# Folder of this Makefile -> works from any current directory
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE := docker compose -f $(HERE)../../compose.yaml
 
@@ -26,12 +26,12 @@ VARIANT ?= hil
 DK      := $(HERE)scripts/dk.sh
 export SNR
 
-# -p auto: pristine nur wenn nötig (z. B. anderes Board)
+# -p auto: pristine build only when needed (e.g. a different board)
 WEST_BUILD := $(COMPOSE) run --rm fw west build -b $(BOARD) -p auto --no-sysbuild
 
-# Firmware-Lauf in results.json eintragen: $(call RECORD,<gerät>,<build-ordner>)
-# 1. fw-Container: uart.log + zephyr.elf -> build/<ordner>/run.json (geräteunabhängiges Format)
-# 2. ml-Container bekommt run.json per stdin und ordnet es per sha256 dem Modell zu
+# Record a firmware run in results.json: $(call RECORD,<device>,<build folder>)
+# 1. fw container: uart.log + zephyr.elf -> build/<folder>/run.json (device-independent format)
+# 2. ml container reads run.json from stdin and links it to its model via the sha256
 RECORD = $(COMPOSE) run --rm -T fw python3 scripts/run_json.py $(1) build/$(2) && \
 	$(COMPOSE) run --rm -T ml results record < $(HERE)build/$(2)/run.json
 

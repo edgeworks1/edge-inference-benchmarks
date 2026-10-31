@@ -18,8 +18,8 @@ import struct
 import sys
 from pathlib import Path
 
-RESULT_LINE = re.compile(r"RESULT (\{.*\})")  # s. src/main.cpp
-SRAM = range(0x2000_0000, 0x4000_0000)  # SRAM-Bereich der Cortex-M-Memory-Map
+RESULT_LINE = re.compile(r"RESULT (\{.*\})")  # see src/main.cpp
+SRAM = range(0x2000_0000, 0x4000_0000)  # SRAM region of the Cortex-M memory map
 PT_LOAD = 1
 
 
@@ -28,7 +28,7 @@ def parse_uart_log(log_path: Path) -> dict:
     for line in log_path.read_text(errors="replace").splitlines():
         if match := RESULT_LINE.search(line):
             return json.loads(match.group(1))
-    raise SystemExit(f"Keine RESULT-Zeile in {log_path} (Firmware abgestürzt oder Timeout?)")
+    raise SystemExit(f"No RESULT line in {log_path} (firmware crashed or timed out?)")
 
 
 def elf_memory(elf_path: Path) -> tuple[int, int]:
@@ -51,9 +51,9 @@ def elf_memory(elf_path: Path) -> tuple[int, int]:
         if p_type != PT_LOAD:
             continue
         if paddr not in SRAM:
-            flash += filesz  # Code, Konstanten (u. a. das Modell), Startwerte von Variablen
+            flash += filesz  # code, constants (incl. the model), initial values of variables
         if vaddr in SRAM:
-            ram += memsz  # Variablen inkl. nullinitialisierter (z. B. die Tensor-Arena)
+            ram += memsz  # variables incl. zero-initialized ones (e.g. the tensor arena)
     return flash, ram
 
 
