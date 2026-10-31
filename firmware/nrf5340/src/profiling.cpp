@@ -104,11 +104,11 @@ uint64_t DwtMicroProfiler::CalculateOperatorMacs(const tflite::Operator* op,
         uint64_t k_w = static_cast<uint64_t>(w_shape->Get(2));
 
         if (op_type == tflite::BuiltinOperator_DEPTHWISE_CONV_2D) {
-            // Depthwise: Jeder Ausgangskanal multipliziert genau einen Kernel-Patch (kein C_in Faktor)
+            // Depthwise: each output channel multiplies exactly one kernel patch (no C_in factor)
             return h_out * w_out * c_out * (k_h * k_w);
         } 
         else if (op_type == tflite::BuiltinOperator_CONV_2D) {
-            // Standard Conv2D: Filter Shape ist [C_out, K_H, K_W, C_in]
+            // Standard Conv2D: filter shape is [C_out, K_H, K_W, C_in]
             uint64_t c_in = static_cast<uint64_t>(w_shape->Get(3));
             return h_out * w_out * c_out * (k_h * k_w * c_in);
         }
@@ -211,10 +211,10 @@ void DwtMicroProfiler::PrintSummary(const tflite::Model* model, uint32_t cpu_fre
            total_time_us / 1000, 
            total_model_cycles);
     printk("Classification Legend:\n");
-    printk("  COMPUTE         : Cyc/MAC < 1.25 -> DSP SMLAD Pipeline optimal ausgelastet\n");
-    printk("  BALANCED        : 1.25 <= Cyc/MAC < 2.5 -> Ausgewogene Rechen- und Lade-Pipelines\n");
-    printk("  MEMORY_FLASH    : Cyc/MAC >= 2.5 -> Flash Bus-Wait-States / D-Code Latenz dominieren\n");
-    printk("  ELEMENTWISE_RAM : Keine MACs -> Elementweise Byte-Loads/Stores belasten das SRAM\n");
-    printk("  IO_OVERHEAD     : Speicher-Umkopierungen (Padding / Reshape / Transpose)\n");
+    printk("  COMPUTE         : Cyc/MAC < 1.25 -> DSP SMLAD pipeline fully utilized\n");
+    printk("  BALANCED        : 1.25 <= Cyc/MAC < 2.5 -> compute and load pipelines balanced\n");
+    printk("  MEMORY_FLASH    : Cyc/MAC >= 2.5 -> flash bus wait states / D-code latency dominate\n");
+    printk("  ELEMENTWISE_RAM : no MACs -> element-wise byte loads/stores load the SRAM\n");
+    printk("  IO_OVERHEAD     : memory copies (padding / reshape / transpose)\n");
     printk("==========================================================================================================\n\n");
 }

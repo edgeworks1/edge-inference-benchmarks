@@ -13,7 +13,7 @@ void DwtMicroProfiler::Reset() {
 
 uint32_t DwtMicroProfiler::BeginEvent(const char* tag) {
     if (num_events_ >= PROFILER_MAX_EVENTS) {
-        return 0xFFFFFFFF; // Ungültiger Handle, damit nicht 0 überschrieben wird
+        return 0xFFFFFFFF; // Invalid handle, so that event 0 is never overwritten
     }
     uint32_t handle = num_events_++;
     events_[handle].tag = tag;
@@ -66,7 +66,7 @@ void DwtMicroProfiler::PrintSummary(const tflite::Model* model, uint32_t cpu_fre
 
         uint32_t time_us = events_[i].total_cycles / cpu_freq_mhz;
 
-        // Overflow-sichere Prozentberechnung via uint64_t
+        // Percentage computed in uint64_t to avoid overflow
         uint32_t percent_x10 = (total_model_cycles > 0) 
             ? static_cast<uint32_t>((static_cast<uint64_t>(events_[i].total_cycles) * 1000ULL) / total_model_cycles) 
             : 0;

@@ -21,14 +21,14 @@ class DwtMicroProfiler : public tflite::MicroProfilerInterface {
 public:
     DwtMicroProfiler();
 
-    // Hardware-Init für Cortex-M33 DWT Register
+    // Hardware init of the Cortex-M33 DWT registers
     void InitHardware();
 
     // TFLM Profiler Interface
     uint32_t BeginEvent(const char* tag) override;
     void EndEvent(uint32_t event_handle) override;
 
-    // Analyse & Ausgabe
+    // Analysis and report
     void Reset();
     void PrintSummary(const tflite::Model* model, uint32_t cpu_freq_mhz = 128);
 
@@ -36,7 +36,7 @@ private:
     LayerProfile events_[PROFILER_MAX_EVENTS];
     uint32_t num_events_;
 
-    // Berechnet die theoretischen MACs anhand der FlatBuffer Tensor-Shapes
+    // Computes the theoretical MACs from the flatbuffer tensor shapes
     uint64_t CalculateOperatorMacs(const tflite::Operator* op, 
                                    const tflite::SubGraph* subgraph, 
                                    tflite::BuiltinOperator op_type);

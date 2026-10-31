@@ -15,7 +15,7 @@ int main(void)
 
     InferenceResult res;
 
-    // Erster Run (inkl. Profiler-Aufzeichnung)
+    // First run (also records the per-layer profile)
     if (!inference_run(TEST_INPUT_SAMPLES[0], &res)) {
         printk("Inference failed.\n");
         return -1;
@@ -25,11 +25,11 @@ int main(void)
            res.execution_time_us,
            res.execution_cycles);
 
-    // Detail-Report für jeden Layer ausgeben
+    // Print the detailed per-layer report
     inference_dump_profiling();
 
-    // Maschinenlesbar (JSON) für scripts/run_json.py, immer als letzte Zeile.
-    // sha256 der .tflite (von codegen eingebettet) -> Messwert landet sicher beim richtigen Modell.
+    // Machine-readable (JSON) for scripts/run_json.py, always the last line.
+    // sha256 of the .tflite (embedded by codegen) -> the measurement is linked to the right model.
     printk("RESULT {\"model_sha256\": \"%s\", \"cycles\": %u, \"latency_us\": %u, "
            "\"arena_used_bytes\": %u, \"prediction\": %.4f}\n",
            g_model_data_sha256,

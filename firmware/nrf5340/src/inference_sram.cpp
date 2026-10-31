@@ -11,12 +11,12 @@
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
-// 2 MB Puffer für das gespiegelte MobileNet FlatBuffer im SRAM
+// 2 MB buffer for the MobileNet flatbuffer mirrored into SRAM
 #define MODEL_SRAM_BUFFER_SIZE (3 * 1024 * 1024)
 alignas(16) static uint8_t s_model_sram[MODEL_SRAM_BUFFER_SIZE];
 
-// 3 MB Tensor Arena für Aktivierungen, Intermediate-Tensors und Scratch
-// Größe kommt aus Kconfig (CONFIG_APP_TENSOR_ARENA_SIZE), pro Variante unterschiedlich
+// 3 MB tensor arena for activations, intermediate tensors and scratch buffers
+// Size comes from Kconfig (CONFIG_APP_TENSOR_ARENA_SIZE) and differs per variant
 #define TENSOR_ARENA_SIZE CONFIG_APP_TENSOR_ARENA_SIZE
 alignas(16) static uint8_t tensor_arena[TENSOR_ARENA_SIZE];
 
@@ -29,7 +29,7 @@ static int total_input_elements = 0;
 
 static DwtMicroProfiler profiler;
 
-// Deklaration der generierten Modell-Größe aus model_data.h/cc
+// Size of the generated model from model_data.h/cc
 extern const size_t g_model_data_len;
 
 bool inference_init(const unsigned char* model_data)
@@ -39,14 +39,14 @@ bool inference_init(const unsigned char* model_data)
         return false;
     }
 
-    // DWT Zyklencounter aktivieren
+    // Enable the DWT cycle counter
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
     DWT->CYCCNT = 0;
 
     tflite::InitializeTarget();
 
-    // 1. Modellgröße prüfen und komplett ins SRAM spiegeln
+    // 1. Check the model size and mirror the whole model into SRAM
     if (g_model_data_len > MODEL_SRAM_BUFFER_SIZE) {
         printk("Error: Model size (%u bytes) exceeds SRAM buffer (%u bytes)!\n",
                (unsigned int)g_model_data_len, MODEL_SRAM_BUFFER_SIZE);
@@ -58,7 +58,7 @@ bool inference_init(const unsigned char* model_data)
     printk("[SRAM Mirror] Model mirrored to SRAM at: 0x%08X (%u bytes)\n",
            (uintptr_t)s_model_sram, (unsigned int)g_model_data_len);
 
-    // 2. GetModel bindet direkt den SRAM-Puffer ein (Weights zeigen nun ins SRAM)
+    // 2. GetModel uses the SRAM buffer directly (weights are now read from SRAM)
     current_model = tflite::GetModel(s_model_sram);
     if (current_model->version() != TFLITE_SCHEMA_VERSION) {
         printk("Error: Model schema mismatch (Expected %d, got %d)\n",
@@ -66,7 +66,7 @@ bool inference_init(const unsigned char* model_data)
         return false;
     }
 
-    // 3. Op-Resolver mit 30 Ops Kapazität
+    // 3. Op resolver with room for 30 ops
     static tflite::MicroMutableOpResolver<30> resolver;
     resolver.AddFullyConnected();
     resolver.AddConv2D();

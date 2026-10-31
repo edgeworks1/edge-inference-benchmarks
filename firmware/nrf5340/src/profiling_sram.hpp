@@ -21,7 +21,7 @@ public:
     uint32_t BeginEvent(const char* tag) override;
     void EndEvent(uint32_t event_handle) override;
 
-    // Analyse & Ausgabe
+    // Analysis and report
     void Reset();
     void PrintSummary(const tflite::Model* model, uint32_t cpu_freq_mhz = 128);
 
