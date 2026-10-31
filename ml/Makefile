@@ -7,6 +7,7 @@
 # (Comments deliberately NOT after the values: make would keep the spaces in front of them)
 # M:         model name from `make -C ml models`
 # GPU:       1 = train on the GPU (service ml-gpu), 0 = on the CPU (service ml)
+# DATA:      dataset folder in ml/data/: sample (public, default) or full (not in the repo)
 # EVAL:      0 = export without MAE evaluation (faster)
 # CKPT:      input of export/tflite/onnx
 # CKPT_NAME: folder in outputs/ = checkpoint path inside checkpoints/ without .pt
@@ -15,6 +16,7 @@
 # TARGET:    device whose measurements `table` shows (nrf5340dk or renode)
 M      ?= mobilenet_v3_micro_2d
 GPU    ?= 1
+DATA   ?= sample
 EVAL   ?= 1
 CKPT   ?= checkpoints/$(M).pt
 CKPT_NAME ?= $(patsubst checkpoints/%.pt,%,$(CKPT))
@@ -24,9 +26,10 @@ TARGET ?= nrf5340dk
 # ---- Internals ----
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE := docker compose -f $(HERE)../compose.yaml
-ML      := $(COMPOSE) run --rm ml
+RUN     := $(COMPOSE) run --rm -e BLE_CS_DATA_DIR=/app/data/$(DATA)
+ML      := $(RUN) ml
 DEV     := $(COMPOSE) run --rm -T ml-dev
-TRAIN   := $(COMPOSE) run --rm $(if $(filter 1,$(GPU)),ml-gpu,ml)
+TRAIN   := $(RUN) $(if $(filter 1,$(GPU)),ml-gpu,ml)
 NOEVAL  := $(if $(filter 0,$(EVAL)),--no-eval)
 # Host path: the ml package does not know the firmware, only this Makefile copies into it
 NRF_SRC := $(HERE)../firmware/nrf5340/src
@@ -53,7 +56,7 @@ help:
 	@echo "  lint         report lint findings"
 	@echo "  check        formatting + lint, changes nothing (run before committing)"
 	@echo "Other: models, images"
-	@echo "Parameters: M=$(M) GPU=$(GPU) EVAL=$(EVAL) [CKPT=...] [TFLITE=...]"
+	@echo "Parameters: M=$(M) GPU=$(GPU) DATA=$(DATA) EVAL=$(EVAL) [CKPT=...] [TFLITE=...]"
 
 models:
 	$(ML) models

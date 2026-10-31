@@ -23,23 +23,10 @@ def load_targets(path: Path, target: str) -> np.ndarray:
 
 
 def load_training_set() -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(features, targets)`` of a reproducible random subset of the training data.
-
-    The subset size is ``TRAIN_SAMPLE_RATE`` of the training set, drawn with ``SEED``.
-    """
-    columns = [*cfg.FEATURES_RAW_IQ_ALL, cfg.TARGET]
-    train_df = pd.read_parquet(cfg.TRAIN_DATA_PATH, columns=columns)
-    complete_size = len(train_df)
-    if cfg.TRAIN_SAMPLE_RATE < 1.0:
-        subset_size = max(1, round(complete_size * cfg.TRAIN_SAMPLE_RATE))
-        train_df = train_df.sample(n=subset_size, random_state=cfg.SEED)
-
-    print(
-        f"Training data: {len(train_df):,}/{complete_size:,} samples "
-        f"({len(train_df) / complete_size:.1%})"
-    )
-    features = train_df[cfg.FEATURES_RAW_IQ_ALL].to_numpy(dtype=np.float32)
-    targets = train_df[cfg.TARGET].to_numpy(dtype=np.float32)
+    """Return ``(features, targets)`` of the complete training set."""
+    features = load_features(cfg.TRAIN_DATA_PATH, cfg.FEATURES_RAW_IQ_ALL)
+    targets = load_targets(cfg.TRAIN_DATA_PATH, cfg.TARGET).astype(np.float32)
+    print(f"Training data: {len(features):,} samples")
     return features, targets
 
 

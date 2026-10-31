@@ -73,5 +73,4 @@ def _training_settings() -> dict[str, Any]:
         "epochs": cfg.EPOCHS,
         "batch_size": cfg.BATCH_SIZE,
         "learning_rate": cfg.LEARNING_RATE,
-        "train_sample_rate": cfg.TRAIN_SAMPLE_RATE,
     }

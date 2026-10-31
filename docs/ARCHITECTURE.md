@@ -54,15 +54,15 @@ PyTorch, MAE für FP32 und INT8 getrennt, Zyklen auf Simulator *und* echtem Boar
 
 ## 2. Der Weg in diesem Repo
 
-| # | Schritt | Befehl | Ergebnis | Welt |
-|---|---|---|---|---|
-| 1 | Daten | – | `ml/data/*.parquet` (öffentlicher Ausschnitt: `ml/data/sample/`) | ① |
-| 2 | Training | `make -C ml train M=<modell>` | `ml/checkpoints/<name>.pt` | ① |
-| 3 | Export + Quantisierung | `make -C ml export` | `ml/outputs/<name>/{fp32_full,int8_full,int8_qdq}/model.*` | ② |
-| 4 | Codegen | `make -C ml to-nrf samples` | Modell als C-Array in `firmware/nrf5340/src/` | ② → ③ |
-| 5 | Firmware bauen | `make -C firmware/nrf5340 renode` / `hil` | `build/<variante>/zephyr/zephyr.elf` | ③ |
-| 6 | Ausführen + messen | `make -C firmware/nrf5340 sim` / `measure` | `build/<variante>/run.json` | ③ |
-| 7 | Ergebnisse sammeln | (passiert in 3 und 6) | `ml/outputs/<name>/results.json` | – |
+| # | Schritt                | Befehl                                         | Ergebnis                                                                                                                        | Welt     |
+| - | ---------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1 | Daten                  | –                                             | `ml/data/sample/{training,eval}.parquet` (kleines Sample damit die Pipeline läuft); voller Datensatz wird nicht mitgeliefert | ①       |
+| 2 | Training               | `make -C ml train M=<modell>`                | `ml/checkpoints/<name>.pt`                                                                                                    | ①       |
+| 3 | Export + Quantisierung | `make -C ml export`                          | `ml/outputs/<name>/{fp32_full,int8_full,int8_qdq}/model.*`                                                                    | ②       |
+| 4 | Codegen                | `make -C ml to-nrf samples`                  | Modell als C-Array in `firmware/nrf5340/src/`                                                                                 | ② → ③ |
+| 5 | Firmware bauen         | `make -C firmware/nrf5340 renode` / `hil`  | `build/<variante>/zephyr/zephyr.elf`                                                                                          | ③       |
+| 6 | Ausführen + messen    | `make -C firmware/nrf5340 sim` / `measure` | `build/<variante>/run.json`                                                                                                   | ③       |
+| 7 | Ergebnisse sammeln     | (passiert in 3 und 6)                          | `ml/outputs/<name>/results.json`                                                                                              | –       |
 
 Was in den Schritten passiert und worauf man achten muss:
 
@@ -74,11 +74,11 @@ billig. Man trainiert einmal und exportiert beliebig oft neu, z. B. für eine an
 
 **3 – Export.** Drei Varianten pro Checkpoint, jede in einem eigenen Ordner:
 
-| Ordner | Format | Bedeutung |
-|---|---|---|
-| `fp32_full/` | TFLite + ONNX | float32, Referenz für die Genauigkeit |
-| `int8_full/` | TFLite | INT8 inkl. Ein- und Ausgang: was ein Mikrocontroller braucht |
-| `int8_qdq/` | ONNX | INT8-Gewichte/-Aktivierungen, aber float32-Ein-/Ausgang (für NPU/Jetson-Toolchains) |
+| Ordner         | Format        | Bedeutung                                                                            |
+| -------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `fp32_full/` | TFLite + ONNX | float32, Referenz für die Genauigkeit                                               |
+| `int8_full/` | TFLite        | INT8 inkl. Ein- und Ausgang: was ein Mikrocontroller braucht                         |
+| `int8_qdq/`  | ONNX          | INT8-Gewichte/-Aktivierungen, aber float32-Ein-/Ausgang (für NPU/Jetson-Toolchains) |
 
 Quantisierung braucht **Kalibrierung**: 1000 echte Trainings-Samples laufen durch das Modell,
 um die Wertebereiche jeder Schicht zu bestimmen. Schlechte Kalibrierdaten bedeuten ein schlechtes
@@ -102,12 +102,14 @@ liefert die gültigen Zahlen (Hardware-in-the-Loop, HIL).
 ## 3. Die Prinzipien und warum
 
 ### Linux / WSL first
+
 Embedded-Toolchains, Docker, Skripte und CI laufen nativ unter Linux. Unter Windows entsteht
 schnell ein Setup aus Klicks in IDEs, das niemand nachbauen kann. Unter Windows arbeitest du
 deshalb in **WSL2**. Windows ist nur noch für das Durchreichen des USB-Debuggers zuständig
 (`usbipd`, siehe [wsl_flashing_setup.md](wsl_flashing_setup.md)).
 
 ### Alles in Docker
+
 Jeder Schritt läuft in einem Container mit festgelegten Versionen: Python-Pakete über
 `uv.lock`, Zephyr-SDK und Renode mit geprüftem sha256. *Warum:* „Bei mir läuft's“ verschwindet.
 Ein neuer Student, ein CI-Server und du in einem Jahr bekommen exakt dieselbe Umgebung. Auf dem
@@ -118,6 +120,7 @@ sind und sich unabhängig ändern. Die ML-Umgebung soll nicht neu bauen, nur wei
 Zephyr-SDK ändert.
 
 ### CLI first, keine Notebooks in der Pipeline
+
 Jeder Schritt ist ein Kommandozeilen-Befehl (`ble-cs train`, `ble-cs export` …). *Warum:*
 Befehle sind automatisierbar (CI, über Nacht 20 Modelle durchmessen), reviewbar und
 wiederholbar. Notebooks haben versteckten Zustand (Zellen in beliebiger Reihenfolge ausgeführt)
@@ -125,11 +128,13 @@ und lassen sich schlecht versionieren. **Zum Erkunden** von Daten sind Notebooks
 funktioniert, wandert in das Python-Paket.
 
 ### Makefiles als Einstiegspunkt
+
 `make -C ml help` zeigt, was es gibt. Die Makefiles sind ausführbare Dokumentation: Sie
 enthalten die langen `docker compose run …`-Befehle mit allen Parametern, damit niemand sie
 abtippen oder erraten muss. Sie verbinden außerdem ML und Firmware (siehe nächster Punkt).
 
 ### ML und Firmware sind entkoppelt
+
 Das Python-Paket `ml/` kennt keine Firmware-Pfade, die Firmware kennt kein Python-Paket. Sie
 reden nur über **zwei Dateiformate**:
 
@@ -145,24 +150,28 @@ liefert. Am ML-Code ändert sich nichts. Die einzige Stelle, die beide Seiten ke
 Makefiles, und genau dafür sind sie da.
 
 ### Reproduzierbar: Code in Git, Erzeugtes nicht
+
 In Git liegen Code, Konfiguration, Lockfiles und ein kleiner Datenausschnitt. **Nicht** in Git:
 Checkpoints, Exporte, generierter C-Code, Build-Ordner. Alles davon lässt sich aus Code +
 Daten + Checkpoint neu erzeugen. Trainings-Einstellungen sind feste Konstanten mit festem Seed
 (`ml/src/ble_cs_profiling/config.py`): Zweimal trainieren ergibt dasselbe Ergebnis.
 
 ### Rückverfolgbar: vom Modell bis zur Messung
+
 Jede Messung muss sich eindeutig einem Modell zuordnen lassen. Deshalb gibt die Firmware den
 sha256 der `.tflite` aus, die sie wirklich enthält. Passt er zu keinem exportierten Modell,
 wird die Messung abgelehnt (z. B. wenn die Firmware nach dem Codegen nicht neu gebaut wurde).
 Wird ein Modell neu exportiert und ändert sich dabei, fliegen alte Messungen automatisch raus.
 
 ### Feste Ablage, feste Namen
+
 `ml/outputs/<checkpoint>/<präzision>/model.<format>`: Jeder weiß ohne Nachfragen, wo welche
 Datei liegt, und Skripte können sich darauf verlassen. Der Ordnername kommt vom Checkpoint,
 nicht vom Modelltyp, damit Varianten desselben Modells (z. B. zwei Trainingsläufe) sich nicht
 überschreiben.
 
 ### Messen statt raten
+
 Simulator, Austauschformat und Board liefern unterschiedliche Zahlen. Ein Beispiel aus diesem
 Repo: INT4- statt INT8-Gewichte haben beim MobileNet den Flash um ein Drittel verkleinert, aber
 die Zyklen um 35 % und die Tensor-Arena auf das 5,6-Fache erhöht, weil TFLite Micro die
@@ -173,22 +182,24 @@ INT4-Gewichte zur Laufzeit in einen INT8-Puffer entpackt. Das sieht man nur, wen
 ## 4. Auf das eigene Projekt übertragen
 
 ### Was du übernehmen solltest
+
 Die drei Welten, die Ordnerstruktur (`ml/`, `firmware/<ziel>/`, `docs/`, `compose.yaml`),
 Docker für jeden Schritt, Makefiles als Einstieg, Checkpoint als Übergabe, feste Ablage,
 `results.json` + `run.json` als Verträge, Messen auf echter Hardware.
 
 ### Was du mit hoher Wahrscheinlichkeit neu schreiben musst
 
-| Bereich | Hier (BLE-Beispiel) | Bei dir vermutlich |
-|---|---|---|
-| Daten | Parquet, 300 IQ-Spalten, `config.py` | Bilder, Zeitreihen, Radar-Punktwolken, Graphen … |
-| Vorverarbeitung | keine (Rohdaten) | Normalisierung, Fenster, Feature-Extraktion. **Muss auf dem Gerät identisch nachgebaut werden!** |
-| Metrik | MAE (Regression) | Accuracy, F1, mAP … |
-| Modelle | MLP, MobileNetV3 | dein Modell, in der Registry eingetragen |
-| Export | TFLite (litert-torch), ONNX | hängt von Modell und Ziel ab: der schwierigste Teil |
-| Firmware | Zephyr + TFLM auf nRF5340 | andere MCU, NPU-Toolchain, Linux-Board (Jetson) |
+| Bereich         | Hier (BLE-Beispiel)                    | Bei dir vermutlich                                                                                      |
+| --------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Daten           | Parquet, 300 IQ-Spalten, `config.py` | Bilder, Zeitreihen, Radar-Punktwolken, Graphen …                                                       |
+| Vorverarbeitung | keine (Rohdaten)                       | Normalisierung, Fenster, Feature-Extraktion. **Muss auf dem Gerät identisch nachgebaut werden!** |
+| Metrik          | MAE (Regression)                       | Accuracy, F1, mAP …                                                                                    |
+| Modelle         | MLP, MobileNetV3                       | dein Modell, in der Registry eingetragen                                                                |
+| Export          | TFLite (litert-torch), ONNX            | hängt von Modell und Ziel ab: der schwierigste Teil                                                    |
+| Firmware        | Zephyr + TFLM auf nRF5340              | andere MCU, NPU-Toolchain, Linux-Board (Jetson)                                                         |
 
 ### Typische Stolpersteine je Modellart
+
 - **Klassisches ML (GBDT, Random Forest):** kein PyTorch. Das mentale Modell bleibt gleich:
   Modell speichern → Austauschformat (z. B. ONNX über `skl2onnx`) oder direkt C-Code (z. B.
   `emlearn`, `m2cgen`) → Gerät. Oft der einfachste Weg auf einen Mikrocontroller.
@@ -207,6 +218,7 @@ Die Firmware muss jeden verwendeten Operator registrieren (hier die Liste in
 angepasst werden muss.
 
 ### Empfohlenes Vorgehen: erst durchstechen, dann verbessern
+
 1. **Zuerst die ganze Kette mit einem dummen Modell** (z. B. ein winziges MLP) bis zur
    Messung auf der Hardware. So findest du die harten Probleme (Export, Speicher, Toolchain)
    am Anfang statt in der letzten Woche.
@@ -218,17 +230,17 @@ angepasst werden muss.
 
 ## 5. Begriffe
 
-| Begriff | Bedeutung |
-|---|---|
-| Checkpoint | Gespeichertes trainiertes Modell (Gewichte + Metadaten), hier `.pt` |
-| Quantisierung (PTQ) | float32 → int8 nach dem Training. Kleiner und schneller, etwas ungenauer |
-| Kalibrierung | Repräsentative Daten bestimmen die Wertebereiche für die Quantisierung |
-| full INT8 | Auch Ein- und Ausgang sind int8 (keine float-Rechnung mehr auf dem Gerät) |
-| QDQ | Quantize/Dequantize-Knoten im ONNX-Graphen, Ein-/Ausgang bleibt float |
+| Begriff             | Bedeutung                                                                      |
+| ------------------- | ------------------------------------------------------------------------------ |
+| Checkpoint          | Gespeichertes trainiertes Modell (Gewichte + Metadaten), hier `.pt`          |
+| Quantisierung (PTQ) | float32 → int8 nach dem Training. Kleiner und schneller, etwas ungenauer      |
+| Kalibrierung        | Repräsentative Daten bestimmen die Wertebereiche für die Quantisierung       |
+| full INT8           | Auch Ein- und Ausgang sind int8 (keine float-Rechnung mehr auf dem Gerät)     |
+| QDQ                 | Quantize/Dequantize-Knoten im ONNX-Graphen, Ein-/Ausgang bleibt float          |
 | TFLite Micro (TFLM) | Runtime für TFLite-Modelle auf Mikrocontrollern, ohne Betriebssystem-Features |
-| CMSIS-NN | Optimierte Kernels von Arm für Cortex-M (SIMD-Befehle) |
-| Tensor-Arena | Fester RAM-Block, in dem TFLM alle Zwischenergebnisse ablegt |
-| Flash / RAM | Programmspeicher (Code, Modell) / Arbeitsspeicher (Variablen, Arena) |
-| Renode | Simulator für Mikrocontroller: gut für Vergleiche und CI, nicht zyklengenau |
-| HIL | Hardware-in-the-Loop: Test/Messung auf dem echten Board |
-| sha256 | Prüfsumme einer Datei. Gleiche Datei = gleicher Wert, eindeutige Zuordnung |
+| CMSIS-NN            | Optimierte Kernels von Arm für Cortex-M (SIMD-Befehle)                        |
+| Tensor-Arena        | Fester RAM-Block, in dem TFLM alle Zwischenergebnisse ablegt                   |
+| Flash / RAM         | Programmspeicher (Code, Modell) / Arbeitsspeicher (Variablen, Arena)           |
+| Renode              | Simulator für Mikrocontroller: gut für Vergleiche und CI, nicht zyklengenau  |
+| HIL                 | Hardware-in-the-Loop: Test/Messung auf dem echten Board                        |
+| sha256              | Prüfsumme einer Datei. Gleiche Datei = gleicher Wert, eindeutige Zuordnung    |

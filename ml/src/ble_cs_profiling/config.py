@@ -3,11 +3,13 @@
 Every path can be overridden with an environment variable (used by Docker and CI):
 
     BLE_CS_PROJECT_ROOT    base folder for data/, outputs/ and checkpoints/
-    BLE_CS_DATA_DIR        datasets (Parquet)
+    BLE_CS_DATA_DIR        dataset folder with training.parquet and eval.parquet
     BLE_CS_OUTPUT_DIR      exported artifacts (ONNX, TFLite, C sources, results)
     BLE_CS_CHECKPOINT_DIR  trained PyTorch checkpoints
 
-Example: ``BLE_CS_DATA_DIR=/app/data/sample`` trains on the small public data sample.
+The default dataset is the small public sample in ``data/sample/`` (100 training and 100
+evaluation rows), so the pipeline runs out of the box. ``BLE_CS_DATA_DIR=/app/data/full``
+(``make ... DATA=full``) switches to a full dataset with the same file names.
 """
 
 import os
@@ -39,9 +41,9 @@ def _dir_from_env(variable: str, default: Path) -> Path:
 
 PROJECT_ROOT = _find_project_root()
 
-DATA_DIR = _dir_from_env("BLE_CS_DATA_DIR", PROJECT_ROOT / "data")
-TRAIN_DATA_PATH = DATA_DIR / "combined_training_reduced.parquet"
-EVAL_DATA_PATH = DATA_DIR / "combined_eval_reduced.parquet"
+DATA_DIR = _dir_from_env("BLE_CS_DATA_DIR", PROJECT_ROOT / "data" / "sample")
+TRAIN_DATA_PATH = DATA_DIR / "training.parquet"
+EVAL_DATA_PATH = DATA_DIR / "eval.parquet"
 
 # Folders are created when something is written, not at import time.
 OUTPUT_DIR = _dir_from_env("BLE_CS_OUTPUT_DIR", PROJECT_ROOT / "outputs")
@@ -77,7 +79,6 @@ SEED = 42
 EPOCHS = 5
 BATCH_SIZE = 256
 LEARNING_RATE = 2e-3
-TRAIN_SAMPLE_RATE = 0.1  # train on a random 10 % of the training set
 
 # Representative training samples for INT8 calibration (ONNX and TFLite), drawn with
 # SEED: every export calibrates on exactly the same data.

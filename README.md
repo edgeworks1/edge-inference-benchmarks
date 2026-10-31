@@ -25,7 +25,9 @@ only has to produce the same `run.json`.
 
 ## Quickstart
 
-Put the datasets (not part of the repo) into `ml/data/`, then from the repository root:
+The repo ships a small public data sample (`ml/data/sample/`: 100 training and 100 eval rows,
+raw IQ samples + ground-truth distance), so the pipeline runs right after cloning. From the
+repository root:
 
 ```bash
 mkdir -p ml/checkpoints ml/outputs           # Compose won't create them (they would be owned by root)
@@ -36,12 +38,15 @@ make -C ml table TARGET=renode               # all results as a Markdown table
 ```
 
 No NVIDIA GPU? Add `GPU=0` to train on the CPU. `make -C ml help` lists all steps and parameters.
+The sample is only meant to run the pipeline end to end: models trained on it are not accurate.
+With a full dataset in `ml/data/full/` (same file names, not published) add `DATA=full`.
 On the real board use `make -C firmware/nrf5340 measure` instead of `sim` (build, flash, read UART,
 record), see [Hardware](#hardware).
 
 ## Results
 
-nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. MAE on the full eval set (42,242 samples).
+nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. Produced with the full dataset
+(`DATA=full`, not published): MAE on 42,242 eval samples, INT8 calibration on 1,000 training samples.
 
 | Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
