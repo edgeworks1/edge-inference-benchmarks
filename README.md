@@ -7,9 +7,6 @@ The focus is on deployment constraints (size, memory, latency), not on squeezing
 
 Everything runs in Docker. The host only needs Docker (plus J-Link tools for the real board).
 
-**New to edge AI?** Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) first (German): how such a
-project is structured, why, and how to transfer it to your own data, models and hardware.
-
 ## Pipeline
 
 ```
@@ -126,7 +123,7 @@ nRF5340 DK (1 MB flash, 448 KB app RAM, 128 KB arena). Details: [firmware/nrf534
 ### Development
 
 VS Code → **Dev Containers: Reopen in Container** gives the `dev` stage of `ml/Dockerfile`
-(GPU torch, pytest, ruff, debugger; launch configs in `.vscode/launch.json`). Its Python
+(GPU torch, pytest, ruff, debugger). Its Python
 environment is read-only: add packages with `uv add --no-sync <package>`, then rebuild the container.
 
 Code style is enforced with [ruff](https://docs.astral.sh/ruff/) (configured in `ml/pyproject.toml`):

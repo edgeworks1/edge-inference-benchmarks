@@ -20,9 +20,6 @@ dist/
 /ml/checkpoints/
 # Alles, was die Pipeline erzeugt (Exporte, Codegen, Samples) – reproduzierbar aus Checkpoint + Daten
 /ml/outputs/
-# Alte Mess-Ergebnisse (Excel/CSV) – künftig als JSON pro Lauf in ml/outputs/
-/analytics/*.csv
-/analytics/*.xlsx
 
 # Daten, Logs & Secrets
 /ml/data/*
@@ -39,3 +36,8 @@ COMMANDS.md
 Grober Plan.md
 TFLM_lernen.md
 uebungen/
+
+# Local editor and assistant files (kept locally, not published)
+.vscode/
+CLAUDE.md
+docs/ARCHITECTURE.md

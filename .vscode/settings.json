@@ -1,5 +1,0 @@
-{
-    "git.ignoreLimitWarning": true,
-    "jupyter.notebookFileRoot": "${workspaceFolder}/ml",
-    "cmake.sourceDirectory": "${workspaceFolder}/firmware/nrf5340"
-}
