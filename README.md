@@ -1,4 +1,4 @@
-# BLE CS Profiling
+# Edge Inference Benchmarks
 
 Reproducible edge-AI pipeline: small regression models estimate distance from raw BLE Channel
 Sounding IQ samples, get quantized to full INT8 and are profiled on a Cortex-M33 (nRF5340,
@@ -17,7 +17,7 @@ checkpoint (.pt) ─ export ─▶ fp32_full / int8_full (.tflite)  ─ codegen 
 ```
 
 `ml/` and `firmware/` don't know each other: the Makefiles copy the generated C sources into the
-firmware and pipe the firmware's `run.json` back into `ble-cs results record`. Another device
+firmware and pipe the firmware's `run.json` back into `edge-ib results record`. Another device
 only has to produce the same `run.json`.
 
 ## Quickstart
@@ -91,7 +91,7 @@ end up at the wrong one, and a re-export that changes the model drops old measur
 ## Repository layout
 
 ```
-ml/                 Python package ble_cs_profiling (CLI: ble-cs): models, training, export, codegen, results
+ml/                 Python package edge_ib (CLI: edge-ib): models, training, export, codegen, results
   Makefile          entry points for the ML steps (all run in Docker)
 firmware/nrf5340/   Zephyr / NCS 2.6.0 app: runs the model, prints per-layer cycles and a RESULT line
   scripts/          run_json.py: UART log + ELF -> run.json
@@ -100,9 +100,9 @@ docs/               setup guides and design notes
 compose.yaml        all containers: ml, ml-gpu, fw, renode
 ```
 
-Training settings are fixed constants in [ml/src/ble_cs_profiling/config.py](ml/src/ble_cs_profiling/config.py)
+Training settings are fixed constants in [ml/src/edge_ib/config.py](ml/src/edge_ib/config.py)
 (seed 42): training twice gives the same checkpoint. New models are registered in
-[models/registry.py](ml/src/ble_cs_profiling/models/registry.py).
+[models/registry.py](ml/src/edge_ib/models/registry.py).
 
 ## Requirements
 

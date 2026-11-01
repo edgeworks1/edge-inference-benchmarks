@@ -5,7 +5,7 @@ Almost the same parameter count as MobileNetV3-Small, but every channel count is
 have to process the leftover channels outside their unrolled 4-channel SIMD loops.
 """
 
-from ble_cs_profiling.models.mobilenet_v3.blocks import (
+from edge_ib.models.mobilenet_v3.blocks import (
     BlockRow,
     MobileNetV3Regressor2D,
     block_configs,

@@ -13,10 +13,10 @@ from typing import Any
 
 from torch import nn
 
-from ble_cs_profiling.models.mlp.edge_bench_mlp import EdgeBenchMLP
-from ble_cs_profiling.models.mobilenet_v3.mobilenet_v3_micro_2d import MobileNetV3Micro2D
-from ble_cs_profiling.models.mobilenet_v3.mobilenet_v3_small_2d import MobileNetV3Small2D
-from ble_cs_profiling.models.mobilenet_v3.mobilenet_v3_small_2d_bad_simd import (
+from edge_ib.models.mlp.edge_bench_mlp import EdgeBenchMLP
+from edge_ib.models.mobilenet_v3.mobilenet_v3_micro_2d import MobileNetV3Micro2D
+from edge_ib.models.mobilenet_v3.mobilenet_v3_small_2d import MobileNetV3Small2D
+from edge_ib.models.mobilenet_v3.mobilenet_v3_small_2d_bad_simd import (
     MobileNetV3Small2DBadSimd,
 )
 

@@ -2,8 +2,8 @@
 
 One file collects everything measured for one checkpoint, written step by step:
 
-- ``ble-cs export``          -> ``artifacts``: size, sha256 and MAE of every exported model file
-- ``ble-cs results record``  -> ``targets``: cycles, latency, arena, flash and RAM on a device,
+- ``edge-ib export``          -> ``artifacts``: size, sha256 and MAE of every exported model file
+- ``edge-ib results record``  -> ``targets``: cycles, latency, arena, flash and RAM on a device,
                                 taken from a device-independent ``run.json`` (read from stdin)
 
 The sha256 is the link between both: a device run belongs to the model file with the same

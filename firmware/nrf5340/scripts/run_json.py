@@ -8,7 +8,7 @@ Reads ``<build dir>/uart.log`` (the firmware's ``RESULT {...}`` line) and
     {"target": ..., "model_sha256": ..., "cycles": ..., "latency_us": ...,
      "arena_used_bytes": ..., "flash_bytes": ..., "ram_bytes": ..., "prediction": ...}
 
-This format is the only thing the ML side (``ble-cs results record``) knows about a device.
+This format is the only thing the ML side (``edge-ib results record``) knows about a device.
 Standard library only: runs in the fw container without extra packages.
 """
 

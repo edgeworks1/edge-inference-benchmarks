@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ble_cs_profiling import config as cfg
+from edge_ib import config as cfg
 
 
 def load_features(path: Path, feature_names: list[str]) -> np.ndarray:

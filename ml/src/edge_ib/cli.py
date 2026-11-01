@@ -1,4 +1,4 @@
-"""Command line interface: ``ble-cs <command>`` (overview: ``ble-cs --help``).
+"""Command line interface: ``edge-ib <command>`` (overview: ``edge-ib --help``).
 
 The commands only parse arguments and delegate to the library modules. Heavy imports
 (torch, LiteRT, ONNX Runtime) happen inside the commands so that ``--help`` stays fast.
@@ -9,10 +9,10 @@ from typing import Annotated
 
 import typer
 
-from ble_cs_profiling import config as cfg
+from edge_ib import config as cfg
 
 app = typer.Typer(
-    help="BLE CS profiling: train models, export them for edge targets, generate firmware sources.",
+    help="Edge inference benchmarks: train, export for edge targets, generate firmware sources.",
     no_args_is_help=True,
     pretty_exceptions_show_locals=False,
 )
@@ -31,7 +31,7 @@ ExistingFile = Annotated[
 @app.command("models")
 def list_models() -> None:
     """List all registered model names with their default arguments."""
-    from ble_cs_profiling.models import MODELS
+    from edge_ib.models import MODELS
 
     for name, preset in MODELS.items():
         print(f"{name:34s} {preset.func.__name__:28s} {preset.keywords}")
@@ -40,7 +40,7 @@ def list_models() -> None:
 @app.command()
 def train(
     model: Annotated[
-        str, typer.Option("--model", "-m", help="Registry name, see `ble-cs models`.")
+        str, typer.Option("--model", "-m", help="Registry name, see `edge-ib models`.")
     ] = "mobilenet_v3_small_2d",
     output: Annotated[
         Path | None,
@@ -50,7 +50,7 @@ def train(
     ] = None,
 ) -> None:
     """Train a registered model with the fixed settings from config.py and save a checkpoint."""
-    from ble_cs_profiling.train import train as run_training
+    from edge_ib.train import train as run_training
 
     run_training(model, output or cfg.CHECKPOINT_DIR / f"{model}.pt")
 
@@ -77,7 +77,7 @@ def export(
     ] = True,
 ) -> None:
     """Export a checkpoint to ONNX and TFLite (FP32 + INT8) and record sizes and MAE."""
-    from ble_cs_profiling.export import ExportOptions, export_checkpoint
+    from edge_ib.export import ExportOptions, export_checkpoint
 
     options = ExportOptions(
         onnx=onnx,
@@ -99,7 +99,7 @@ def codegen_model(
     ] = None,
 ) -> None:
     """Embed a .tflite model (+ its sha256) as model_data.h / model_data.cc."""
-    from ble_cs_profiling.codegen import write_model_sources
+    from edge_ib.codegen import write_model_sources
 
     write_model_sources(tflite, out_dir or tflite.parent / "codegen")
 
@@ -113,8 +113,8 @@ def codegen_samples(
     seed: int = 34,
 ) -> None:
     """Draw reproducible eval samples as data.hpp (MCU) and .npy (Jetson/PC)."""
-    from ble_cs_profiling.codegen import write_test_samples
-    from ble_cs_profiling.data import draw_eval_samples
+    from edge_ib.codegen import write_test_samples
+    from edge_ib.data import draw_eval_samples
 
     features, targets = draw_eval_samples(num_samples, seed)
     write_test_samples(features, targets, out_dir or cfg.OUTPUT_DIR / "samples")
@@ -129,7 +129,7 @@ def results_record() -> None:
     import json
     import sys
 
-    from ble_cs_profiling.results import record_run
+    from edge_ib.results import record_run
 
     record_run(json.load(sys.stdin), cfg.OUTPUT_DIR)
 
@@ -141,6 +141,6 @@ def results_table(
     ] = "nrf5340dk",
 ) -> None:
     """Print all results.json as one Markdown table (e.g. for the README)."""
-    from ble_cs_profiling.results import markdown_table
+    from edge_ib.results import markdown_table
 
     print(markdown_table(cfg.OUTPUT_DIR, target))

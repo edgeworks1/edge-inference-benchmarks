@@ -1,6 +1,6 @@
 # Start parameters of all pipeline containers in one place.
 #   docker compose build                               # build all images
-#   docker compose run --rm ml train -m edge_bench_mlp # run `ble-cs <command>` in a container (CPU)
+#   docker compose run --rm ml train -m edge_bench_mlp # run `edge-ib <command>` in a container (CPU)
 #   docker compose run --rm ml-gpu train -m ...        # the same on the GPU
 services:
   ml:
@@ -9,7 +9,7 @@ services:
       target: runtime   # Dockerfile stage (otherwise the last one, dev, would be built)
       args:
         TORCH_VARIANT: cpu
-    image: ble-cs:cpu
+    image: edge-ib:cpu
     volumes:
       # create_host_path: false -> Compose aborts if the folder is missing instead of silently
       # creating it as root (the container user app could not write into it then)
@@ -39,7 +39,7 @@ services:
     build:
       args:
         TORCH_VARIANT: cu130
-    image: ble-cs:cu130
+    image: edge-ib:cu130
     gpus: all
 
   # Development tools (ruff, pytest) in the exact versions from uv.lock, CPU only.
@@ -51,7 +51,7 @@ services:
       target: dev
       args:
         TORCH_VARIANT: cpu
-    image: ble-cs:dev-cpu
+    image: edge-ib:dev-cpu
     volumes:
       - type: bind
         source: ./ml
@@ -67,7 +67,7 @@ services:
     build:
       context: ./firmware/nrf5340
       target: build
-    image: ble-cs-fw:nrf5340
+    image: edge-ib-fw:nrf5340
     volumes:
       - type: bind
         source: ./firmware/nrf5340
@@ -84,7 +84,7 @@ services:
     build:
       context: ./firmware/nrf5340
       target: renode
-    image: ble-cs-renode:1.16.1
+    image: edge-ib-renode:1.16.1
     volumes:
       - type: bind
         source: ./firmware/nrf5340

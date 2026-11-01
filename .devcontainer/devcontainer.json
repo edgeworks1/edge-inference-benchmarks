@@ -1,7 +1,7 @@
 // VS Code dev container: "Dev Containers: Reopen in Container"
 // Builds the "dev" stage of ml/Dockerfile (GPU variant) and mounts the repo at /workspace.
 {
-  "name": "BLE CS profiling (dev, GPU)",
+  "name": "Edge Inference Benchmarks (dev, GPU)",
 
   // ---- Build (like docker build) ----
   // Paths are relative to this file
@@ -20,8 +20,8 @@
 
   // Named volumes (managed by Docker, not in the repo): survive "Rebuild Container"
   "mounts": [
-    "source=ble-cs-bashhistory,target=/commandhistory,type=volume",
-    "source=ble-cs-cache,target=/home/app/.cache,type=volume"
+    "source=edge-ib-bashhistory,target=/commandhistory,type=volume",
+    "source=edge-ib-cache,target=/home/app/.cache,type=volume"
   ],
 
   // VS Code runs as user "app" (created in the image with UID 1000, like a typical WSL user)

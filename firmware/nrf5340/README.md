@@ -7,10 +7,10 @@ and reports per-layer cycle counts (DWT) over UART. The last line is machine-rea
 RESULT {"model_sha256": "795d8933…", "cycles": 61060, "latency_us": 477, "arena_used_bytes": 1252, "prediction": 1.8906}
 ```
 
-`model_sha256` is embedded by `ble-cs codegen`. After a run, `sim` / `measure` call
+`model_sha256` is embedded by `edge-ib codegen`. After a run, `sim` / `measure` call
 [scripts/run_json.py](scripts/run_json.py) (in the `fw` container): it combines this line with
 flash/RAM from `zephyr.elf` into a device-independent `build/<variant>/run.json`, which is piped
-into `ble-cs results record`. That file is the only interface to the ML side.
+into `edge-ib results record`. That file is the only interface to the ML side.
 
 One app, two variants:
 

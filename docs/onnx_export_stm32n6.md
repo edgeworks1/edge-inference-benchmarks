@@ -1,6 +1,6 @@
 # ONNX-Export für die STM32N6-NPU: warum opset 13
 
-Stand: 2026-10-05 · Code: `ml/src/ble_cs_profiling/export.py` (`export_onnx`, `quantize_onnx_int8`)
+Stand: 2026-10-05 · Code: `ml/src/edge_ib/export.py` (`export_onnx`, `quantize_onnx_int8`)
 
 ## Wofür es den ONNX-Export gibt
 
@@ -9,7 +9,7 @@ Stand: 2026-10-05 · Code: `ml/src/ble_cs_profiling/export.py` (`export_onnx`, `
 | `.tflite` (full INT8) | nRF5340, Cortex-M33 ohne NPU | TFLite Micro + CMSIS-NN |
 | `.onnx` (INT8 QDQ) | STM32N6, Neural-ART NPU | ST Edge AI Core (STM32Cube.AI) |
 
-Der ONNX-Pfad existiert also wegen der STM32N6-NPU. Für das nRF wird er nicht gebraucht (`ble-cs export … --no-onnx`).
+Der ONNX-Pfad existiert also wegen der STM32N6-NPU. Für das nRF wird er nicht gebraucht (`edge-ib export … --no-onnx`).
 
 ## Entscheidung
 
@@ -72,5 +72,5 @@ Ops, die nicht quantisiert sind, laufen nicht auf der NPU, sondern als Software-
 ## Offene Punkte (beim STM32N6-Schritt klären)
 
 1. Mit der aktuellen ST-Edge-AI-Version beide Varianten durch `stedgeai analyze` (Target Neural-ART) schicken: opset 13 (HardSigmoid + Mul) und opset 14 (HardSwish). Vergleichen, welche Ops HW und welche SW gemappt werden.
-2. Wenn opset 14+ sauber auf HW mappt: Default von `onnx_opset` hochsetzen (`ExportOptions` bzw. `ble-cs export --onnx-opset`) und den TorchScript-Exporter (`dynamo=False`) durch den Dynamo-Exporter ersetzen.
+2. Wenn opset 14+ sauber auf HW mappt: Default von `onnx_opset` hochsetzen (`ExportOptions` bzw. `edge-ib export --onnx-opset`) und den TorchScript-Exporter (`dynamo=False`) durch den Dynamo-Exporter ersetzen.
 3. Die verwendete ST-Edge-AI-Version hier notieren.

@@ -2,13 +2,13 @@
 
 Every path can be overridden with an environment variable (used by Docker and CI):
 
-    BLE_CS_PROJECT_ROOT    base folder for data/, outputs/ and checkpoints/
-    BLE_CS_DATA_DIR        dataset folder with training.parquet and eval.parquet
-    BLE_CS_OUTPUT_DIR      exported artifacts (ONNX, TFLite, C sources, results)
-    BLE_CS_CHECKPOINT_DIR  trained PyTorch checkpoints
+    EDGE_IB_PROJECT_ROOT    base folder for data/, outputs/ and checkpoints/
+    EDGE_IB_DATA_DIR        dataset folder with training.parquet and eval.parquet
+    EDGE_IB_OUTPUT_DIR      exported artifacts (ONNX, TFLite, C sources, results)
+    EDGE_IB_CHECKPOINT_DIR  trained PyTorch checkpoints
 
 The default dataset is the small public sample in ``data/sample/`` (100 training and 100
-evaluation rows), so the pipeline runs out of the box. ``BLE_CS_DATA_DIR=/app/data/full``
+evaluation rows), so the pipeline runs out of the box. ``EDGE_IB_DATA_DIR=/app/data/full``
 (``make ... DATA=full``) switches to a full dataset with the same file names.
 """
 
@@ -20,12 +20,12 @@ from pathlib import Path
 # Paths (independent of the current working directory)
 # ============================================================
 def _find_project_root() -> Path:
-    """Return ``$BLE_CS_PROJECT_ROOT`` or the nearest parent folder containing ``pyproject.toml``.
+    """Return ``$EDGE_IB_PROJECT_ROOT`` or the nearest parent folder containing ``pyproject.toml``.
 
     Installed as a wheel (e.g. in the Docker image) there is no source tree to search,
     so the current working directory is the fallback.
     """
-    if root := os.environ.get("BLE_CS_PROJECT_ROOT"):
+    if root := os.environ.get("EDGE_IB_PROJECT_ROOT"):
         return Path(root).expanduser().resolve()
     for parent in Path(__file__).resolve().parents:
         if (parent / "pyproject.toml").is_file():
@@ -41,13 +41,13 @@ def _dir_from_env(variable: str, default: Path) -> Path:
 
 PROJECT_ROOT = _find_project_root()
 
-DATA_DIR = _dir_from_env("BLE_CS_DATA_DIR", PROJECT_ROOT / "data" / "sample")
+DATA_DIR = _dir_from_env("EDGE_IB_DATA_DIR", PROJECT_ROOT / "data" / "sample")
 TRAIN_DATA_PATH = DATA_DIR / "training.parquet"
 EVAL_DATA_PATH = DATA_DIR / "eval.parquet"
 
 # Folders are created when something is written, not at import time.
-OUTPUT_DIR = _dir_from_env("BLE_CS_OUTPUT_DIR", PROJECT_ROOT / "outputs")
-CHECKPOINT_DIR = _dir_from_env("BLE_CS_CHECKPOINT_DIR", PROJECT_ROOT / "checkpoints")
+OUTPUT_DIR = _dir_from_env("EDGE_IB_OUTPUT_DIR", PROJECT_ROOT / "outputs")
+CHECKPOINT_DIR = _dir_from_env("EDGE_IB_CHECKPOINT_DIR", PROJECT_ROOT / "checkpoints")
 
 
 # ============================================================

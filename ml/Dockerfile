@@ -31,7 +31,7 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-install-project --extra ${TORCH_VARIANT}
 
-# Make the venv's programs (python, ble-cs) callable without a path
+# Make the venv's programs (python, edge-ib) callable without a path
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Non-root user with the host's UID/GID, so files written to mounted folders belong to you.
@@ -57,8 +57,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Do not run as root (the user was created in base)
 USER app
 
-# The image behaves like the CLI: arguments of `docker run` go straight to ble-cs (default: --help)
-ENTRYPOINT ["ble-cs"]
+# The image behaves like the CLI: arguments of `docker run` go straight to edge-ib (default: --help)
+ENTRYPOINT ["edge-ib"]
 CMD ["--help"]
 
 # =============================================================================

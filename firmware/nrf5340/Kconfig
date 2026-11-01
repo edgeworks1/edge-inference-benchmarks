@@ -1,6 +1,6 @@
 # Options of this app. Set values in prj.conf, in a snippet or with -D<OPTION>=... at build time.
 
-menu "BLE CS profiling app"
+menu "Edge inference benchmark app"
 
 config APP_TENSOR_ARENA_SIZE
 	int "TFLM tensor arena size (bytes)"

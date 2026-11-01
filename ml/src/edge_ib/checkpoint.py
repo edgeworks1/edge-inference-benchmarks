@@ -11,8 +11,8 @@ from typing import Any
 import torch
 from torch import nn
 
-from ble_cs_profiling import config as cfg
-from ble_cs_profiling.models import build_model
+from edge_ib import config as cfg
+from edge_ib.models import build_model
 
 FORMAT_VERSION = 1
 REQUIRED_KEYS = {"model_name", "model_kwargs", "model_state_dict"}
@@ -48,7 +48,7 @@ def load_checkpoint(path: Path) -> tuple[nn.Module, dict[str, Any]]:
     The model is always loaded on the CPU in eval mode: export must not depend on a GPU.
     """
     if not path.is_file():
-        raise FileNotFoundError(f"Checkpoint not found: {path}\nRun `ble-cs train` first.")
+        raise FileNotFoundError(f"Checkpoint not found: {path}\nRun `edge-ib train` first.")
 
     # weights_only: refuses to unpickle arbitrary objects, only tensors and plain data
     checkpoint = torch.load(path, map_location="cpu", weights_only=True)

@@ -3,9 +3,9 @@ requires = ["uv_build>=0.11.3,<0.12"]
 build-backend = "uv_build"
 
 [project]
-name = "ble-cs-profiling"
+name = "edge-ib"
 version = "0.1.0"
-description = "Training, quantization and edge deployment profiling of BLE channel sounding distance models"
+description = "Train, quantize and benchmark models on edge devices (example: BLE channel sounding distance)"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     # --- Deep learning ---
@@ -33,7 +33,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ble-cs = "ble_cs_profiling.cli:app"
+edge-ib = "edge_ib.cli:app"
 
 [project.optional-dependencies]
 # Exactly one of them must be chosen: `uv sync --extra cu130` (local GPU) or `--extra cpu` (CI/Docker).
@@ -97,4 +97,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ble_cs_profiling"]
+known-first-party = ["edge_ib"]

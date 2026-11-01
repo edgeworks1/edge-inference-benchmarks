@@ -3,7 +3,7 @@
 Too large for the nRF5340 (about 1.9 MB as INT8), runs in Renode and serves as reference.
 """
 
-from ble_cs_profiling.models.mobilenet_v3.blocks import (
+from edge_ib.models.mobilenet_v3.blocks import (
     BlockActivation,
     BlockRow,
     MobileNetV3Regressor2D,

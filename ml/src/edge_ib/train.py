@@ -1,6 +1,6 @@
 """Train a registered model with the fixed settings from ``config.py`` and save a checkpoint.
 
-Entry point: ``ble-cs train`` (see ``ble-cs train --help``). Training is deterministic:
+Entry point: ``edge-ib train`` (see ``edge-ib train --help``). Training is deterministic:
 the same model, data and settings give bit-identical weights on the same hardware.
 """
 
@@ -22,10 +22,10 @@ from sklearn.metrics import mean_absolute_error
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from ble_cs_profiling import config as cfg
-from ble_cs_profiling.checkpoint import save_checkpoint
-from ble_cs_profiling.data import load_eval_set, load_training_set
-from ble_cs_profiling.models import build_model
+from edge_ib import config as cfg
+from edge_ib.checkpoint import save_checkpoint
+from edge_ib.data import load_eval_set, load_training_set
+from edge_ib.models import build_model
 
 
 @dataclass

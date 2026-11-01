@@ -26,7 +26,7 @@ TARGET ?= nrf5340dk
 # ---- Internals ----
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE := docker compose -f $(HERE)../compose.yaml
-RUN     := $(COMPOSE) run --rm -e BLE_CS_DATA_DIR=/app/data/$(DATA)
+RUN     := $(COMPOSE) run --rm -e EDGE_IB_DATA_DIR=/app/data/$(DATA)
 ML      := $(RUN) ml
 DEV     := $(COMPOSE) run --rm -T ml-dev
 TRAIN   := $(RUN) $(if $(filter 1,$(GPU)),ml-gpu,ml)

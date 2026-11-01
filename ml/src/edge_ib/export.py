@@ -1,6 +1,6 @@
 """Export a trained checkpoint to hardware-independent deployment formats.
 
-Entry point: ``ble-cs export <checkpoint>`` (see ``ble-cs export --help``).
+Entry point: ``edge-ib export <checkpoint>`` (see ``edge-ib export --help``).
 
 Output layout per checkpoint, one folder per precision::
 
@@ -18,12 +18,12 @@ import numpy as np
 import torch
 from torch import nn
 
-from ble_cs_profiling import config as cfg
-from ble_cs_profiling.checkpoint import load_checkpoint
-from ble_cs_profiling.data import load_calibration_inputs, load_eval_set
-from ble_cs_profiling.evaluation import evaluate_tflite
-from ble_cs_profiling.quantization import quantize_onnx_int8_qdq, quantize_tflite_full_int8
-from ble_cs_profiling.results import record_export
+from edge_ib import config as cfg
+from edge_ib.checkpoint import load_checkpoint
+from edge_ib.data import load_calibration_inputs, load_eval_set
+from edge_ib.evaluation import evaluate_tflite
+from edge_ib.quantization import quantize_onnx_int8_qdq, quantize_tflite_full_int8
+from edge_ib.results import record_export
 
 FP32 = "fp32_full"
 INT8_FULL = "int8_full"

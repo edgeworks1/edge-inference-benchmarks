@@ -4,7 +4,7 @@ Compared to MobileNetV3-Small: no stride in the stem, fewer and narrower blocks,
 smaller last conv and head (96 -> 64 instead of 576 -> 1024).
 """
 
-from ble_cs_profiling.models.mobilenet_v3.blocks import (
+from edge_ib.models.mobilenet_v3.blocks import (
     BlockRow,
     MobileNetV3Regressor2D,
     block_configs,
