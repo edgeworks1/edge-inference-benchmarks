@@ -1,76 +1,76 @@
-# ONNX-Export für die STM32N6-NPU: warum opset 13
+# ONNX export for the STM32N6 NPU: why opset 13
 
-Stand: 2026-10-05 · Code: `ml/src/edge_ib/export.py` (`export_onnx`, `quantize_onnx_int8`)
+Status: 2026-10-05 · Code: `ml/src/edge_ib/export.py` (`export_onnx`), `ml/src/edge_ib/quantization.py` (`quantize_onnx_int8_qdq`)
 
-## Wofür es den ONNX-Export gibt
+## What the ONNX export is for
 
-| Format | Ziel | Toolchain |
+| Format | Target | Toolchain |
 |---|---|---|
-| `.tflite` (full INT8) | nRF5340, Cortex-M33 ohne NPU | TFLite Micro + CMSIS-NN |
+| `.tflite` (full INT8) | nRF5340, Cortex-M33 without NPU | TFLite Micro + CMSIS-NN |
 | `.onnx` (INT8 QDQ) | STM32N6, Neural-ART NPU | ST Edge AI Core (STM32Cube.AI) |
 
-Der ONNX-Pfad existiert also wegen der STM32N6-NPU. Für das nRF wird er nicht gebraucht (`edge-ib export … --no-onnx`).
+So the ONNX path exists because of the STM32N6 NPU. The nRF does not need it (`edge-ib export … --no-onnx`).
 
-## Entscheidung
+## Decision
 
-Export mit **opset 13** über den **alten TorchScript-Exporter** (`torch.onnx.export(..., dynamo=False)`).
+Export with **opset 13** through the **legacy TorchScript exporter** (`torch.onnx.export(..., dynamo=False)`).
 
-**Grund:** Bei der ersten Umsetzung hat die ST-Toolchain den ONNX-Operator `HardSwish` für die NPU nicht akzeptiert. Mit `.tflite` gab es dieses Problem nicht. Die damals benutzte Version von ST Edge AI ist leider nicht notiert.
+**Reason:** In the first implementation, the ST toolchain did not accept the ONNX operator `HardSwish` for the NPU. `.tflite` did not have this problem. Unfortunately, the ST Edge AI version used back then was not recorded.
 
-**Wie opset 13 das löst:** Den ONNX-Operator `HardSwish` gibt es erst ab opset 14. Bei opset 13 zerlegt der TorchScript-Exporter `nn.Hardswish` in Operatoren, die es schon vorher gab. Geprüft mit torch 2.12.1:
+**How opset 13 solves it:** The ONNX operator `HardSwish` only exists from opset 14 on. At opset 13, the TorchScript exporter decomposes `nn.Hardswish` into operators that already existed before. Checked with torch 2.12.1:
 
 ```
 opset 13: Conv → HardSigmoid → Mul      (HardSwish(x) = x · HardSigmoid(x))
 opset 14: Conv → HardSwish
 ```
 
-**Warum `dynamo=False`:** Der neuere Dynamo-Exporter von PyTorch zielt auf aktuelle Opsets. Ein Export auf opset 13 mit dieser Zerlegung ist mit dem alten TorchScript-Exporter am direktesten möglich. Der alte Exporter gilt in PyTorch als Auslaufmodell. Bei einem torch-Update kann dieser Pfad also brechen.
+**Why `dynamo=False`:** PyTorch's newer Dynamo exporter targets current opsets. Exporting to opset 13 with this decomposition is most direct with the legacy TorchScript exporter. PyTorch considers the legacy exporter deprecated, so this path may break with a torch update.
 
-## Was die aktuelle ST-Doku sagt
+## What the current ST docs say
 
-Quelle: ST Edge AI Core **4.0** Embedded Docs (abgerufen 2026-10-05):
+Source: ST Edge AI Core **4.0** embedded docs (retrieved 2026-10-05):
 - [Neural-ART: Supported operators and limitations](https://stm32ai-cs.st.com/assets/embedded-docs/stneuralart_operator_support.html)
 - [ONNX toolbox support](https://stm32ai-cs.st.com/assets/embedded-docs/supported_ops_onnx.html)
 - [TFLite toolbox support](https://stm32ai-cs.st.com/assets/embedded-docs/supported_ops_tflite.html)
 - [Neural-ART programming model](https://stm32ai-cs.st.com/assets/embedded-docs/stneuralart_programming_model.html)
 
-### HardSwish und die Zerlegung
+### HardSwish and the decomposition
 
-| Operator | ONNX → NPU | TFLite → NPU | Hinweis |
+| Operator | ONNX → NPU | TFLite → NPU | Note |
 |---|---|---|---|
-| HardSwish | **HW** | **HW** (`HARD_SWISH`) | In der ONNX-Tabelle verschrieben als „HardSwitch“ |
-| HardSigmoid | **HW** | kein eigener TFLite-Op | Import-Einschränkung (ONNX-Seite): *„supported only for 1D tensor and only on the channel dimension“* |
-| Mul | **HW** | **HW** | Software-Fallback bei Broadcasting außerhalb der HW-Grenzen |
+| HardSwish | **HW** | **HW** (`HARD_SWISH`) | Misspelled as "HardSwitch" in the ONNX table |
+| HardSigmoid | **HW** | no dedicated TFLite op | Import restriction (ONNX page): *"supported only for 1D tensor and only on the channel dimension"* |
+| Mul | **HW** | **HW** | Software fallback when broadcasting exceeds the HW limits |
 
-**Wichtig:** Laut Doku 4.0 ist **natives HardSwish (opset ≥ 14) inzwischen HW-unterstützt, und zwar ohne Einschränkung.** Ausgerechnet die opset-13-Zerlegung enthält dagegen `HardSigmoid`, und dafür nennt die Import-Seite eine Einschränkung. Mit aktuellen ST-Tools könnte opset 14+ also die bessere Wahl sein. Das ist **nicht praktisch geprüft**. Siehe „Offene Punkte“.
+**Important:** According to docs 4.0, **native HardSwish (opset ≥ 14) is now HW-supported, without restrictions.** The opset 13 decomposition, on the other hand, contains `HardSigmoid`, for which the import page lists a restriction. With current ST tools, opset 14+ might therefore be the better choice. This is **not verified in practice**, see "Open points".
 
-### Importierbare Opsets
+### Importable opsets
 
-> „A part of a subset of operators from Opset 7, 8, 9, 10 up to 20 of ONNX 1.15 is supported.“
+> "A part of a subset of operators from Opset 7, 8, 9, 10 up to 20 of ONNX 1.15 is supported."
 
-opset 13 und 14 liegen beide im unterstützten Bereich.
+Opset 13 and 14 are both within the supported range.
 
-### ONNX hat auf der NPU teilweise mehr Operatoren als TFLite
+### ONNX partly maps more operators to the NPU than TFLite
 
-Das hat sich bestätigt. Die ONNX-Mapping-Tabelle ist länger und enthält HW-gemappte Operatoren, die in der TFLite-Tabelle fehlen, z. B.:
+This is confirmed. The ONNX mapping table is longer and contains HW-mapped operators that are missing from the TFLite table, e.g.:
 
-`Gelu` · `Selu` · `Erf` · `HardSigmoid` · `BatchNormalization` (einzeln) · trigonometrische Ops (`Asin`, `Acos`, `Atan`, `Tan`, `Sinh` …)
+`Gelu` · `Selu` · `Erf` · `HardSigmoid` · `BatchNormalization` (standalone) · trigonometric ops (`Asin`, `Acos`, `Atan`, `Tan`, `Sinh` …)
 
-Für die MobileNet-Modelle hier spielt das kaum eine Rolle: Conv, DepthwiseConv, ReLU, HardSwish, Add und Pooling sind in beiden Formaten HW. Interessant wird es für Transformer-Modelle (`Gelu`, `Erf`).
+For the MobileNet models here this hardly matters: Conv, DepthwiseConv, ReLU, HardSwish, Add and pooling are HW in both formats. It becomes interesting for transformer models (`Gelu`, `Erf`).
 
-### Quantisierungsformat
+### Quantization format
 
-Beide Formate nutzen dasselbe Schema: **INT8, per-channel, „ss/sa“** (Gewichte signed symmetrisch, Aktivierungen signed asymmetrisch).
+Both formats use the same scheme: **INT8, per-channel, "ss/sa"** (weights signed symmetric, activations signed asymmetric).
 
-- **TFLite:** INT8-quantisiertes Modell (PTQ oder QAT)
-- **ONNX:** muss im **QDQ-Format** vorliegen (QuantizeLinear/DequantizeLinear um die Float-Ops)
+- **TFLite:** INT8-quantized model (PTQ or QAT)
+- **ONNX:** must be in **QDQ format** (QuantizeLinear/DequantizeLinear around the float ops)
 
-`quantize_onnx_int8` erzeugt genau das: `QuantFormat.QDQ`, `QInt8` für Gewichte und Aktivierungen, `per_channel=True`. Die Symmetrie-Defaults von onnxruntime (Gewichte symmetrisch, Aktivierungen asymmetrisch) entsprechen ss/sa.
+`quantize_onnx_int8_qdq` produces exactly that: `QuantFormat.QDQ`, `QInt8` for weights and activations, `per_channel=True`. The onnxruntime symmetry defaults (weights symmetric, activations asymmetric) match ss/sa.
 
-Ops, die nicht quantisiert sind, laufen nicht auf der NPU, sondern als Software-Fallback auf dem Cortex-M55.
+Ops that are not quantized do not run on the NPU but as a software fallback on the Cortex-M55.
 
-## Offene Punkte (beim STM32N6-Schritt klären)
+## Open points (to settle in the STM32N6 step)
 
-1. Mit der aktuellen ST-Edge-AI-Version beide Varianten durch `stedgeai analyze` (Target Neural-ART) schicken: opset 13 (HardSigmoid + Mul) und opset 14 (HardSwish). Vergleichen, welche Ops HW und welche SW gemappt werden.
-2. Wenn opset 14+ sauber auf HW mappt: Default von `onnx_opset` hochsetzen (`ExportOptions` bzw. `edge-ib export --onnx-opset`) und den TorchScript-Exporter (`dynamo=False`) durch den Dynamo-Exporter ersetzen.
-3. Die verwendete ST-Edge-AI-Version hier notieren.
+1. Run both variants through `stedgeai analyze` (target Neural-ART) with the current ST Edge AI version: opset 13 (HardSigmoid + Mul) and opset 14 (HardSwish). Compare which ops are mapped to HW and which to SW.
+2. If opset 14+ maps cleanly to HW: raise the `onnx_opset` default (`ExportOptions` or `edge-ib export --onnx-opset`) and replace the TorchScript exporter (`dynamo=False`) with the Dynamo exporter.
+3. Record the ST Edge AI version used here.

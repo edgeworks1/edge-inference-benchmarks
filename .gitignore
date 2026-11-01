@@ -10,7 +10,7 @@ __pycache__/
 dist/
 *.egg-info/
 
-# KI-spezifische Modelldateien & Checkpoints
+# Model files & checkpoints
 *.pt
 *.pth
 *.safetensors
@@ -18,18 +18,18 @@ dist/
 *.onnx
 *.tflite
 /ml/checkpoints/
-# Alles, was die Pipeline erzeugt (Exporte, Codegen, Samples) – reproduzierbar aus Checkpoint + Daten
+# Everything the pipeline generates (exports, codegen, samples), reproducible from checkpoint + data
 /ml/outputs/
 
-# Daten, Logs & Secrets
+# Data, logs & secrets
 /ml/data/*
-# Ausnahme: kleiner öffentlicher Ausschnitt (je 100 Samples, nur IQ-Spalten + Ziel)
+# Exception: small public sample (100 rows each, only IQ columns + target)
 !/ml/data/sample/
 datasets/
 runs/
 .env
 
-# Drafts, Notizen & To-Do-Listen
+# Drafts, notes & to-do lists
 Pipeline_verbesserungen.txt
 To Do.md
 COMMANDS.md

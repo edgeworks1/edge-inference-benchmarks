@@ -45,20 +45,37 @@ record), see [Hardware](#hardware).
 nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. Produced with the full dataset
 (`DATA=full`, not published): MAE on 42,242 eval samples, INT8 calibration on 1,000 training samples.
 
-| Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|
-| `edge_bench_mlp` | 1.399 | 1.395 | 26.0 | 61,060 | 477 | 1.2 | 216.3 | 164.8 |
-| `mobilenet` | 0.506 | 0.510 | 1905.0 | – | – | – | – | – |
-| `mobilenet/bad_simd` | 0.507 | 0.509 | 1890.8 | – | – | – | – | – |
-| `mobilenet/relu` | 0.470 | 0.476 | 1913.6 | – | – | – | – | – |
-| `mobilenet/small` | 0.413 | 0.425 | 337.2 | 19,486,472 | 152,238 | 50.4 | 527.5 | 164.8 |
-| `mobilenet_v3_micro_2d` | 0.413 | 0.425 | 337.2 | 19,486,472 | 152,238 | 50.4 | 527.5 | 164.8 |
-| `my_mlp` | 1.399 | 1.395 | 26.0 | 61,060 | 477 | 1.2 | 216.3 | 164.8 |
+| Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Cycles (renode) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| `edge_bench_mlp` | 1.399 | 1.376 | 25.9 | 61,069 | 46,384 | 477 | 1.2 | 216.2 | 164.8 |
+| `mobilenet` | 0.506 | 0.554 | 1894.7 | – | 16,328,976 | – | – | – | – |
+| `mobilenet/bad_simd` | 0.507 | 0.508 | 1880.5 | – | 16,656,016 | – | – | – | – |
+| `mobilenet/relu` | 0.470 | 0.477 | 1902.4 | – | 14,531,440 | – | – | – | – |
+| `mobilenet/small` | 0.413 | 0.422 | 329.9 | 19,481,318 | 15,775,824 | 152,197 | 50.4 | 520.2 | 164.8 |
+| `mobilenet_v3_micro_2d` | 0.413 | 0.422 | 329.9 | 19,481,318 | 15,775,824 | 152,197 | 50.4 | 520.2 | 164.8 |
 
 `–` = does not fit into the 1 MB flash of the nRF5340 (runs in Renode only: `make -C ml table TARGET=renode`).
 Arena = tensor memory TFLite Micro actually needs; Flash and RAM = whole firmware (Zephyr + TFLM + model).
 Renode is not cycle-accurate (the board needs 24–32 % more cycles here): good for comparing models,
 absolute numbers come from the board.
+
+### STM32N6 (Neural-ART NPU)
+
+| Checkpoint | Model | Latency [ms] | Flash [KB] | RAM [KB] |
+|---|---|--:|--:|--:|
+| `mobilenet` | INT8 TFLite, NPU | 16.57 | 3176 | 153 |
+| `mobilenet` | INT8 ONNX, NPU | 15.72 | 3182 | 130 |
+| `mobilenet` | INT8 TFLite, CPU only | 73 | 1506 | 35 |
+| `mobilenet` | FP32 TFLite (NPU needs INT8) | 132 | 12129 | 18 |
+| `mobilenet/relu` | INT8 TFLite, NPU | 16.67 | 3163 | 139 |
+| `mobilenet/bad_simd` | INT8 TFLite, NPU | 17.25 | – | – |
+
+Same checkpoints and the same `.tflite` files as on the nRF5340, profiled by hand with the board
+attached in the STM32Cube AI Studio GUI, so this pipeline cannot reproduce them yet (a headless
+flow is planned). The numbers come from an export before the current INT8 calibration, hence no
+sha256 link to `results.json`. Flash and RAM include the runtime library. The ONNX row tests the
+other exchange format: the NPU compiler maps more ONNX operators than TFLite ones, see
+[docs/onnx_export_stm32n6.md](docs/onnx_export_stm32n6.md).
 
 ## Outputs
 
@@ -130,3 +147,7 @@ Code style is enforced with [ruff](https://docs.astral.sh/ruff/) (configured in 
 `make -C ml format` formats and applies safe fixes, `make -C ml check` only reports. Run `check`
 before every commit; the dev container formats on save. Once per clone, let `git blame` skip
 pure formatting commits: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
+## License
+
+[MIT](LICENSE)

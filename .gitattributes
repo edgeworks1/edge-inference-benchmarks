@@ -1,3 +1,3 @@
-# Zeilenenden: im Repo immer LF (Linux/Docker/CI), egal auf welchem OS ausgecheckt wird.
-# text=auto: Git erkennt Binärdateien selbst und lässt sie unangetastet.
+# Line endings: always LF in the repo (Linux/Docker/CI), no matter which OS checks it out.
+# text=auto: Git detects binary files itself and leaves them untouched.
 * text=auto eol=lf

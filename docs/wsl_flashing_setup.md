@@ -1,52 +1,52 @@
-# nRF5340 DK aus WSL flashen: Einrichtung
+# Flashing the nRF5340 DK from WSL: setup
 
-Stand: 2026-10-15 · getestet mit Windows 11 + WSL2 (Ubuntu 24.04), usbipd-win 5.3, SEGGER J-Link V9.82,
+Status: 2026-10-15 · tested with Windows 11 + WSL2 (Ubuntu 24.04), usbipd-win 5.3, SEGGER J-Link V9.82,
 nrfutil 8.2.1 (`device` 2.22.0), nRF5340 DK (PCA10095)
 
-Ziel: Firmware bauen, flashen und die UART-Ausgabe lesen – alles aus WSL, ohne Windows-Werkzeuge
-und ohne `sudo`. Damit kann auch ein Skript bzw. ein Agent unbeaufsichtigt flashen.
+Goal: build firmware, flash it and read the UART output, all from WSL, without Windows tools
+and without `sudo`. This also lets a script or an agent flash unattended.
 
 ```
 Windows                           WSL2
 ───────                           ────
-DK (J-Link, USB) ── usbipd ──▶    /dev/bus/usb/…        ← nrfutil flasht darüber (J-Link-Bibliothek)
+DK (J-Link, USB) ── usbipd ──▶    /dev/bus/usb/…        ← nrfutil flashes through this (J-Link library)
                                   /dev/serial/by-id/…   ← UART (cat / pyserial)
 ```
 
-Der Build selbst läuft in Docker (siehe `firmware/nrf5340/README.md`) und braucht nichts davon.
+The build itself runs in Docker (see `firmware/nrf5340/README.md`) and needs none of this.
 
 ---
 
-## 1. Windows: USB-Gerät an WSL weiterreichen (usbipd-win)
+## 1. Windows: pass the USB device through to WSL (usbipd-win)
 
-WSL2 ist eine virtuelle Maschine und sieht USB-Geräte nicht von selbst. **usbipd-win** reicht sie
-über das Netzwerkprotokoll USB/IP an WSL weiter.
+WSL2 is a virtual machine and does not see USB devices on its own. **usbipd-win** passes them
+to WSL over the USB/IP network protocol.
 
-### 1.1 Installieren (einmalig)
+### 1.1 Install (once)
 
 ```powershell
 winget install usbipd
 ```
 
-### 1.2 Gerät freigeben (einmalig, **PowerShell als Administrator**)
+### 1.2 Share the device (once, **PowerShell as administrator**)
 
 ```powershell
-usbipd list                          # J-Link suchen: VID:PID 1366:1061
-usbipd bind --hardware-id 1366:1061  # oder: --busid <BUSID> aus der Liste
-usbipd list                          # STATE muss jetzt "Shared" sein
+usbipd list                          # look for the J-Link: VID:PID 1366:1061
+usbipd bind --hardware-id 1366:1061  # or: --busid <BUSID> from the list
+usbipd list                          # STATE must now be "Shared"
 ```
 
-`bind` gibt das Gerät nur frei – es hängt danach noch an Windows. Die Freigabe bleibt über Neustarts erhalten.
+`bind` only shares the device; it is still attached to Windows afterwards. The share survives reboots.
 
-### 1.3 An WSL anhängen
+### 1.3 Attach to WSL
 
-Zum Ausprobieren (Fenster muss offen bleiben):
+To try it out (the window must stay open):
 
 ```powershell
 usbipd attach --wsl --hardware-id 1366:1061 --auto-attach
 ```
 
-Dauerhaft (startet versteckt bei jeder Anmeldung, normale PowerShell genügt):
+Permanently (starts hidden at every logon, a normal PowerShell is enough):
 
 ```powershell
 $exe = "C:\Program Files\usbipd-win\usbipd.exe"
@@ -56,39 +56,39 @@ $t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName "usbipd-attach-jlink" -Action $a -Trigger $t -Settings $s
 Start-ScheduledTask -TaskName "usbipd-attach-jlink"
-# Entfernen: Unregister-ScheduledTask -TaskName usbipd-attach-jlink
+# Remove: Unregister-ScheduledTask -TaskName usbipd-attach-jlink
 ```
 
-Warum so:
+Why this way:
 
-- **`--auto-attach`**: Der J-Link meldet sich beim Flashen/Reset kurz ab und wieder an; ohne diese Option
-  wäre er danach aus WSL verschwunden. Hängt das Gerät auch nach `wsl --terminate` wieder an.
-- **`--hardware-id` statt `--busid`**: Die BUSID hängt am USB-Port (anders angedockt → andere BUSID).
-  Die Hardware-ID ist für jeden SEGGER J-Link gleich.
-- **Solange das DK an WSL hängt, sehen Windows-Programme es nicht** (nRF Connect for VS Code, nrfjprog,
-  COM-Ports). Zurück zu Windows: Aufgabe/Fenster beenden oder `usbipd detach --hardware-id 1366:1061`.
+- **`--auto-attach`**: The J-Link briefly disconnects and reconnects during flashing/reset; without this
+  option it would be gone from WSL afterwards. It also re-attaches the device after `wsl --terminate`.
+- **`--hardware-id` instead of `--busid`**: The BUSID depends on the USB port (docked differently → different
+  BUSID). The hardware ID is the same for every SEGGER J-Link.
+- **While the DK is attached to WSL, Windows programs do not see it** (nRF Connect for VS Code, nrfjprog,
+  COM ports). Back to Windows: end the task/window or `usbipd detach --hardware-id 1366:1061`.
 
-### 1.4 Optional: Laptop über Nacht wach halten
+### 1.4 Optional: keep the laptop awake overnight
 
 ```powershell
-powercfg /change standby-timeout-ac 0   # im Netzbetrieb nie in den Ruhezustand
+powercfg /change standby-timeout-ac 0   # never sleep while on AC power
 ```
 
 ---
 
-## 2. WSL: Werkzeuge installieren
+## 2. WSL: install the tools
 
-### 2.1 Prüfen, ob das DK angekommen ist
+### 2.1 Check that the DK has arrived
 
 ```bash
 lsusb | grep -i segger          # → ID 1366:1061 SEGGER J-Link
-ls -l /dev/serial/by-id/        # → usb-SEGGER_J-Link_00<SNR>-if00 und -if02
+ls -l /dev/serial/by-id/        # → usb-SEGGER_J-Link_00<SNR>-if00 and -if02
 ```
 
-### 2.2 SEGGER J-Link (Bibliothek, über die nrfutil flasht)
+### 2.2 SEGGER J-Link (library nrfutil flashes through)
 
-Version = die, die nrfutil als getestet meldet (`nrfutil device --version`).
-Das POST-Feld bedeutet: Man akzeptiert die SEGGER-Lizenz.
+Version = the one nrfutil reports as tested (`nrfutil device --version`).
+The POST field means: you accept the SEGGER license.
 
 ```bash
 cd /tmp
@@ -98,20 +98,20 @@ curl -fL -o JLink.deb -X POST \
 sudo apt install -y ./JLink.deb
 ```
 
-Liefert `curl` keine `.deb`: im Browser unter segger.com/downloads/jlink herunterladen (Linux, 64-bit DEB).
+If `curl` does not return a `.deb`: download it in the browser at segger.com/downloads/jlink (Linux, 64-bit DEB).
 
-### 2.3 nrf-udev (Zugriff ohne `sudo`)
+### 2.3 nrf-udev (access without `sudo`)
 
-USB-Geräte gehören standardmäßig root. Die Regeln geben Nordic-/SEGGER-Geräte für normale Nutzer frei.
+USB devices belong to root by default. These rules open Nordic/SEGGER devices to normal users.
 
 ```bash
 curl -fL -o nrf-udev.deb https://github.com/NordicSemiconductor/nrf-udev/releases/download/v1.0.1/nrf-udev_1.0.1-all.deb
 sudo apt install -y ./nrf-udev.deb
 ```
 
-Wirkt erst, wenn sich das Gerät neu anmeldet (DK aus-/einstecken oder `attach` neu starten).
+Takes effect only once the device reconnects (unplug/replug the DK or restart `attach`).
 
-### 2.4 nrfutil + `device`-Befehl (ohne `sudo`, liegt im Home)
+### 2.4 nrfutil + `device` command (no `sudo`, lives in your home)
 
 ```bash
 mkdir -p ~/.local/bin
@@ -121,27 +121,27 @@ chmod +x ~/.local/bin/nrfutil
 nrfutil install device
 ```
 
-`nrfutil` ist Nordics aktuelles Werkzeug (Nachfolger des abgekündigten `nrfjprog`) und kann auch den
-Netzkern des nRF5340 flashen.
+`nrfutil` is Nordic's current tool (successor of the deprecated `nrfjprog`) and can also flash the
+network core of the nRF5340.
 
-### 2.5 Serielle Ports lesen dürfen (Gruppe `dialout`)
+### 2.5 Permission to read serial ports (group `dialout`)
 
 ```bash
 sudo usermod -aG dialout $USER
 ```
 
-Gilt erst nach neuer Anmeldung. In WSL: in PowerShell `wsl --terminate Ubuntu-24.04`, dann neues Terminal.
-Prüfen: `id -nG` enthält `dialout`.
+Takes effect only after a new login. In WSL: run `wsl --terminate Ubuntu-24.04` in PowerShell, then open a new terminal.
+Check: `id -nG` contains `dialout`.
 
 ---
 
-## 3. Prüfen
+## 3. Verify
 
 ```bash
 nrfutil device list
 ```
 
-Erwartet (wichtig: `jlink` in `Traits`, keine Warnung „No SEGGER J-Link install found“):
+Expected (important: `jlink` in `Traits`, no warning "No SEGGER J-Link install found"):
 
 ```
 <SNR>
@@ -152,13 +152,13 @@ Ports           /dev/ttyACM0, vcom: 0
 Traits          devkit, jlink, seggerUsb, serialPorts, usb
 ```
 
-Erster Test mit Zephyrs hello_world (aus dem Repo-Root):
+First test with Zephyr's hello_world (from the repo root):
 
 ```bash
 docker compose run --rm fw west build -b nrf5340dk_nrf5340_cpuapp \
   -s /ncs/zephyr/samples/hello_world -d build/hello -p auto --no-sysbuild
-make -C firmware/nrf5340 console &                  # erst lauschen …
-make -C firmware/nrf5340 flash VARIANT=hello        # … dann flashen (inkl. Reset)
+make -C firmware/nrf5340 console &                  # listen first …
+make -C firmware/nrf5340 flash VARIANT=hello        # … then flash (incl. reset)
 # → *** Booting nRF Connect SDK … ***
 #   Hello World! nrf5340dk_nrf5340_cpuapp
 kill %1
@@ -166,40 +166,41 @@ kill %1
 
 ---
 
-## 4. Benutzung
+## 4. Usage
 
 ```bash
-make -C firmware/nrf5340 hil                            # Variante #2 bauen (Docker)
-make -C firmware/nrf5340 flash [SNR=…] [VARIANT=hil]    # flashen + Reset (~1,6 s)
-make -C firmware/nrf5340 console [SNR=…]                # UART des App-Kerns mitlesen
+make -C firmware/nrf5340 hil                            # build variant #2 (Docker)
+make -C firmware/nrf5340 flash [SNR=…] [VARIANT=hil]    # flash + reset (~1.6 s)
+make -C firmware/nrf5340 console [SNR=…]                # read the app core UART
+make -C firmware/nrf5340 measure [SNR=…]                # build, flash, capture UART, record results
 ```
 
-Direkt mit nrfutil:
+Directly with nrfutil:
 
 ```bash
-# <SNR> = Seriennummer aus `nrfutil device list` (steht auch auf dem J-Link-Aufkleber)
+# <SNR> = serial number from `nrfutil device list` (also printed on the J-Link sticker)
 nrfutil device program --serial-number <SNR> --firmware build/hil/zephyr/zephyr.hex \
   --options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE
 nrfutil device reset --serial-number <SNR>
-nrfutil --json device program …     # maschinenlesbarer Fortschritt für Skripte
+nrfutil --json device program …     # machine-readable progress for scripts
 ```
 
 ---
 
-## 5. Stolperfallen
+## 5. Pitfalls
 
-| Symptom | Ursache / Lösung |
+| Symptom | Cause / fix |
 |---|---|
-| UART bleibt leer | Falscher Port: Die Konsole des **App-Kerns** ist `…-if02` (vcom 1). `if00` (vcom 0) gehört zum Netzkern. |
-| Anfang der Ausgabe fehlt | UART puffert nicht. Erst den Port öffnen, **dann** flashen/resetten. |
-| `nrfutil device program` gibt nichts aus | Normal ohne Terminal (z. B. in Skripten): Fortschritt nur bei TTY. Erfolg über Exit-Code oder `--json`. |
-| `Permission denied` auf `/dev/ttyACM*` | Nicht in `dialout` oder WSL nach `usermod` nicht neu gestartet (2.5). |
-| Flashen nur mit `sudo` möglich | nrf-udev fehlt oder Gerät hat sich seit der Installation nicht neu angemeldet (2.3). |
-| „No SEGGER J-Link install found“ | J-Link fehlt (2.2). `nrfutil device list` findet das DK trotzdem – flashen geht aber nicht. |
-| DK fehlt in WSL nach Umstecken/Andocken | `attach` lief mit `--busid` → mit `--hardware-id` neu starten (1.3). |
-| Windows-Tools finden das DK nicht | Es hängt gerade an WSL → `usbipd detach --hardware-id 1366:1061`. |
+| UART stays empty | Wrong port: the **app core** console is `…-if02` (vcom 1). `if00` (vcom 0) belongs to the network core. |
+| Beginning of the output is missing | The UART does not buffer. Open the port first, **then** flash/reset. |
+| `nrfutil device program` prints nothing | Normal without a terminal (e.g. in scripts): progress only on a TTY. Check the exit code or use `--json`. |
+| `Permission denied` on `/dev/ttyACM*` | Not in `dialout`, or WSL not restarted after `usermod` (2.5). |
+| Flashing only works with `sudo` | nrf-udev missing, or the device has not reconnected since the installation (2.3). |
+| "No SEGGER J-Link install found" | J-Link missing (2.2). `nrfutil device list` still finds the DK, but flashing fails. |
+| DK missing in WSL after replugging/docking | `attach` ran with `--busid` → restart it with `--hardware-id` (1.3). |
+| Windows tools do not find the DK | It is currently attached to WSL → `usbipd detach --hardware-id 1366:1061`. |
 
-**Mehrere DKs gleichzeitig (nicht getestet):** Alle J-Links haben dieselbe Hardware-ID `1366:1061`;
-`attach --hardware-id` hängt vermutlich nur eins an. Dann pro DK eine eigene Aufgabe mit `--busid`
-(DK muss dann immer am selben USB-Port stecken). Flashen/UART unterscheiden die DKs bereits über
-die Seriennummer (`SNR=`, `/dev/serial/by-id/usb-SEGGER_J-Link_00<SNR>-if02`).
+**Several DKs at once (not tested):** All J-Links share the hardware ID `1366:1061`;
+`attach --hardware-id` probably attaches only one. Then create one task per DK with `--busid`
+(each DK must then always use the same USB port). Flashing/UART already tell the DKs apart by
+serial number (`SNR=`, `/dev/serial/by-id/usb-SEGGER_J-Link_00<SNR>-if02`).
