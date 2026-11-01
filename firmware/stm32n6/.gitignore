@@ -1,0 +1,5 @@
+# Model copied in by `make -C ml to-stm32n6` (reproducible from checkpoint, never commit)
+model/
+
+# run.json and logs of a measurement
+build/

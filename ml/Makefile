@@ -31,11 +31,12 @@ ML      := $(RUN) ml
 DEV     := $(COMPOSE) run --rm -T ml-dev
 TRAIN   := $(RUN) $(if $(filter 1,$(GPU)),ml-gpu,ml)
 NOEVAL  := $(if $(filter 0,$(EVAL)),--no-eval)
-# Host path: the ml package does not know the firmware, only this Makefile copies into it
+# Host paths: the ml package does not know the firmware, only this Makefile copies into it
 NRF_SRC := $(HERE)../firmware/nrf5340/src
+STM32N6_MODEL := $(HERE)../firmware/stm32n6/model
 STEP    := $(MAKE) --no-print-directory -f $(lastword $(MAKEFILE_LIST))
 
-.PHONY: help models images train export tflite onnx to-nrf samples table format lint check train-export ckpt-to-nrf all
+.PHONY: help models images train export tflite onnx to-nrf samples to-stm32n6 table format lint check train-export ckpt-to-nrf all
 
 help:
 	@echo "Single steps:"
@@ -45,6 +46,7 @@ help:
 	@echo "  onnx         ONNX only (STM32N6, Jetson)      -> ml/outputs/$(CKPT_NAME)/*/model.onnx"
 	@echo "  to-nrf       INT8 TFLite into the firmware    -> firmware/nrf5340/src/ML_Models/"
 	@echo "  samples      test inputs into the firmware    -> firmware/nrf5340/src/data.hpp"
+	@echo "  to-stm32n6   INT8 TFLite for the STM32N6      -> firmware/stm32n6/model/"
 	@echo "Flows:"
 	@echo "  train-export train + export"
 	@echo "  ckpt-to-nrf  tflite + to-nrf (existing checkpoint)"
@@ -87,6 +89,11 @@ to-nrf:
 samples:
 	$(ML) codegen samples
 	cp $(HERE)outputs/samples/data.hpp $(NRF_SRC)/
+
+# The STM32N6 toolchain compiles the model file itself (stedgeai), so no codegen is needed
+to-stm32n6:
+	mkdir -p $(STM32N6_MODEL)
+	cp $(HERE)$(TFLITE) $(STM32N6_MODEL)/model.tflite
 
 table:
 	@$(COMPOSE) --progress quiet run --rm -T ml results table --target $(TARGET)
