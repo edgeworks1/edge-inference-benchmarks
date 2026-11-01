@@ -27,7 +27,7 @@ Before the first build, generate the model sources (`src/ML_Models/`, `src/data.
 
 ## Flashing from WSL (one-time setup)
 
-Step-by-step guide with checks and troubleshooting (German): [docs/wsl_flashing_setup.md](../../docs/wsl_flashing_setup.md).
+Step-by-step guide with checks and troubleshooting: [docs/wsl_flashing_setup.md](../../docs/wsl_flashing_setup.md).
 
 The DK's J-Link is passed from Windows to WSL with [usbipd-win](https://github.com/dorssel/usbipd-win):
 

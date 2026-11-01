@@ -1,243 +1,200 @@
-# STM32N6 (NUCLEO-N657X0-Q): Einrichtung unter Windows
+# STM32N6 (NUCLEO-N657X0-Q)
 
-Dieser Ordner bringt ein exportiertes Modell (`.tflite` oder `.onnx` aus `ml/outputs/`) auf die
-Neural-ART-NPU des STM32N6, misst es auf dem echten Board und liest das Profiling zurück. Alles
-läuft über die Kommandozeile, ohne GUI. Diese Anleitung richtet die Werkzeuge einmalig ein und
-geht die Kette Schritt für Schritt von Hand durch. Ein Makefile, das diese Schritte automatisiert,
-baut darauf auf.
+Runs an exported model (`.tflite` or `.onnx` from `ml/outputs/`) on the Neural-ART NPU of the
+STM32N6, measures it on the real board and records the result. There is no own firmware here:
+ST's tools compile the model and load it into ST's validation app, which is then profiled over
+the ST-LINK's virtual COM port. Everything runs from the command line, no GUI.
 
 ```
-model.tflite / model.onnx
-   │  stedgeai generate        NPU-Compiler: network.c + Gewichte (.raw)
+model/model.tflite | .onnx      copied in by make -C ml to-stm32n6 [FORMAT=onnx]
+   │  make generate              stedgeai generate: NPU compiler → network.c + weights (.raw)
    ▼
-st_ai_output/
-   │  n6_loader.py             baut die ST-Testanwendung, flasht die Gewichte ins externe Flash,
-   ▼                           lädt die Firmware per Debugger in den RAM und startet sie
+st_ai_output/                    (in the Windows work folder)
+   │  make load                  n6_loader.py: builds the validation app, flashes the weights to the
+   ▼                             external flash, loads the app into RAM through the debugger
 NUCLEO-N657X0-Q
-   │  AiRunner / validate      Inferenzen über den virtuellen COM-Port des ST-LINK
+   │  make measure               scripts/run_json.py: inferences over the COM port (ST's AiRunner)
    ▼
-Latenz pro Epoche, Zyklen, Genauigkeit gegen das Host-Modell
+build/run.json  →  edge-ib results record  →  ml/outputs/<checkpoint>/results.json
 ```
 
-**Warum Windows und nicht WSL/Docker wie beim nRF5340?** Technisch ginge beides, die ST-Werkzeuge
-gibt es auch für Linux. Zwei praktische Gründe sprechen dagegen:
+The last line plays the same role as on the nRF5340: [scripts/run_json.py](scripts/run_json.py)
+turns the device data into the device-independent `run.json`, the only interface to the ML side.
+Device name in `results.json`: `stm32n6` for a TFLite model, `stm32n6-onnx` for an ONNX model.
 
-- Die ST-Downloads liegen hinter einem myST-Login mit Lizenzabfrage. Ein Dockerfile kann sie nicht
-  selbst herunterladen, und ein fertiges Image darf wegen der Lizenz nicht öffentlich verteilt werden.
-- Den ST-LINK an WSL durchzureichen (`usbipd bind`) braucht einmal Adminrechte. Unter Windows hängt
-  das Board dagegen ohne weiteres Zutun am Rechner.
+## Quick start
 
-## Getestete Versionen
+From the repo root, once the tools are installed ([section 1](#1-installation)) and the board is
+prepared ([section 3](#3-board-setup)):
 
-| Komponente | Version |
-|---|---|
-| Windows | 11, ohne Adminrechte im Alltag |
-| ST Edge AI Core | 4.0.1 (STM32CubeAI 12.0.1, Neural-ART-Compiler 1.1.3) |
-| STM32CubeIDE | 1.18.1 (GNU Tools for STM32 13.3.rel1, mitgelieferter CubeProgrammer 2.19) |
-| STM32CubeProgrammer (optional, eigenständig) | 2.23.0 |
-| Python | 3.11 (über uv) |
-| Board | NUCLEO-N657X0-Q mit STLINK-V3EC |
+```bash
+make -C firmware/stm32n6 setup                                       # once: venv + config.json
+make -C ml ckpt-to-stm32n6 CKPT=checkpoints/edge_bench_mlp.pt DATA=full              # TFLite
+make -C ml ckpt-to-stm32n6 CKPT=checkpoints/edge_bench_mlp.pt DATA=full FORMAT=onnx  # ONNX
+make -C ml table TARGET=stm32n6
+```
 
-Ältere oder neuere Versionen können funktionieren, sind aber nicht geprüft. Gerade bei
-STM32CubeIDE 2.x können sich die internen Ordnernamen ändern, nach denen das ST-Ladeskript sucht.
+`ckpt-to-stm32n6` = export + `to-stm32n6` + `make -C firmware/stm32n6 measure`; `all-stm32n6`
+trains first. One run takes 1.5 to 4 minutes, mostly building the validation app and flashing.
 
-## Überblick: was du installierst
-
-| Werkzeug | Wofür | Adminrechte |
+| Target | What it does | Board |
 |---|---|---|
-| [ST Edge AI Core](https://www.st.com/en/development-tools/stedgeai-core.html) | `stedgeai` (NPU-Compiler), ST-Testanwendung, Lade- und Messskripte | je nach Zielordner |
-| [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) | Arm-GCC, `make`, `ST-LINK_gdbserver`, `STM32_Programmer_CLI`, ST-LINK-Treiber | ja, einmalig (Treiber) |
-| [uv](https://docs.astral.sh/uv/) | holt Python 3.11 und legt die virtuelle Umgebung an | nein |
+| `make setup` | create the Python venv and `config.json` in the work folder (once) | no |
+| `make generate` | compile `model/model.*` for the NPU; fails if it needs external RAM | no |
+| `make load` | `generate`, then build the validation app with it and start it | yes |
+| `make measure` | `load`, then profile 20 inferences and record the medians | yes |
 
-Mehr nicht. Arm-Compiler, `make` und Programmer werden **nicht** separat installiert und **nicht**
-in den `PATH` eingetragen: Das ST-Ladeskript holt sie sich selbst aus der CubeIDE-Installation.
-Die eigenständige [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html)-GUI
-ist optional (siehe [Stolperfallen](#stolperfallen)).
+## Why Windows and not Docker like the nRF5340?
 
-Alle ST-Downloads brauchen einen kostenlosen myST-Account.
+The ST tools exist for Linux as well, but:
+
+- The ST downloads sit behind a myST login with a license prompt. A Dockerfile cannot fetch them,
+  and an image containing them must not be distributed publicly.
+- Passing the ST-LINK through to WSL (`usbipd bind`) needs admin rights once. On Windows the
+  board just works.
+
+So the Makefile runs in WSL like everywhere else in this repo, but [scripts/dk.sh](scripts/dk.sh)
+calls the Windows programs through WSL interop. They always run inside the Windows work folder
+and never see a WSL path: `cmd` cannot enter `\\wsl.localhost\...`, and the `make` inside ST's
+loader fails on it. That is why the model and the helper script are copied to the work folder.
+
+## Tested versions
+
+| Component | Version |
+|---|---|
+| Windows | 11, no admin rights in daily use |
+| ST Edge AI Core | 4.0.1 (STM32CubeAI 12.0.1, Neural-ART compiler 1.1.3) |
+| STM32CubeIDE | 1.18.1 (GNU Tools for STM32 13.3.rel1, bundled CubeProgrammer 2.19) |
+| STM32CubeProgrammer (optional, standalone) | 2.23.0 |
+| uv | 0.11.3 (provides Python 3.11) |
+| Board | NUCLEO-N657X0-Q with STLINK-V3EC |
+
+Older or newer versions may work but are untested. With STM32CubeIDE 2.x in particular, the
+internal folder names that ST's loader searches for may change.
 
 ## 1. Installation
 
-### 1.1 ST Edge AI Core
-
-1. Auf der [Produktseite](https://www.st.com/en/development-tools/stedgeai-core.html) den
-   Windows-Installer herunterladen und starten.
-2. Als Komponente mindestens **STM32 / Neural-ART (STM32N6)** auswählen.
-3. Zielordner: einen Ordner, in den du **ohne Adminrechte schreiben** kannst, z. B. `C:\ST\STEdgeAI\4.0`.
-   Nicht `C:\Program Files`, denn das Ladeskript schreibt bei jedem Lauf in die ST-Testanwendung
-   innerhalb dieser Installation (siehe [Stolperfallen](#stolperfallen)).
-
-Prüfen:
-
-```bat
-C:\ST\STEdgeAI\4.0\Utilities\windows\stedgeai.exe --version
-```
-
-Erwartet: `ST Edge AI Core v4.0.1-…` und darunter u. a. `STM32CubeAI 12.0.1`.
-
-### 1.2 STM32CubeIDE
-
-1. Den Windows-Installer von der [Produktseite](https://www.st.com/en/development-tools/stm32cubeide.html)
-   ausführen (braucht einmal Adminrechte, weil er den ST-LINK-Treiber installiert).
-2. Zielordner z. B. `C:\ST\STM32CubeIDE_1.18.1`. Die IDE selbst musst du nie öffnen.
-
-Prüfen, ob der Treiber da ist: Board über die **ST-LINK-Buchse** anstecken (siehe
-[Abschnitt 4](#4-board-vorbereiten)). Im Geräte-Manager erscheint unter „Anschlüsse (COM & LPT)“
-der Eintrag **STMicroelectronics STLink Virtual COM Port (COMx)**.
-
-### 1.3 uv
-
-In einer normalen PowerShell (keine Adminrechte nötig):
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Danach ein **neues** Terminal öffnen und prüfen: `uv --version`.
-
-uv lädt das passende Python selbst herunter. Ein bereits installiertes Python (msys2, Chocolatey,
-Microsoft Store) wird dafür nicht gebraucht und sollte auch nicht benutzt werden, siehe
-[Stolperfallen](#stolperfallen).
-
-## 2. Pfade
-
-Die Pfade sind **Make-Variablen** in [Makefile](Makefile) mit Standardwerten. Windows-Umgebungsvariablen
-werden nicht gebraucht:
-
-| Variable | Standard | Bedeutung |
+| Tool | Purpose | Admin rights |
 |---|---|---|
-| `STEDGEAI_DIR` | `C:/ST/STEdgeAI/4.0` | Wurzel der ST-Edge-AI-Installation |
-| `CUBEIDE_DIR` | `C:/ST/STM32CubeIDE_1.18.1/STM32CubeIDE` | Ordner, in dem `stm32cubeide.exe` liegt (darunter `plugins\`) |
-| `N6_WORK_DIR` | `C:/work/n6` | Arbeitsordner auf einem **lokalen Windows-Laufwerk**: venv, `config.json`, kompiliertes Modell |
-| `CUBEPROG_CLI` | Standard-Installationspfad der CubeProgrammer | eigenständiger Programmer; wird genommen, wenn er existiert |
+| [ST Edge AI Core](https://www.st.com/en/development-tools/stedgeai-core.html) | `stedgeai` (NPU compiler), validation app, loader and runner scripts | depends on the target folder |
+| [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) | Arm GCC, `make`, `ST-LINK_gdbserver`, `STM32_Programmer_CLI`, ST-LINK driver | yes, once (driver) |
+| [uv](https://docs.astral.sh/uv/) (Windows) | fetches Python 3.11 and creates the venv | no |
 
-Abweichende Pfade pro Aufruf überschreiben: `make -C firmware/stm32n6 setup N6_WORK_DIR=D:/n6`.
-Immer Windows-Pfade mit `/`.
+Nothing else. Arm compiler, `make` and programmer are **not** installed separately and **not**
+added to `PATH`: ST's loader takes them from the CubeIDE installation. The standalone
+[STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) is optional; if it
+is installed in its default location, `make setup` uses it. All ST downloads need a free myST account.
 
-**Warum keine Windows-Umgebungsvariablen (`setx`)?** Prozesse, die aus WSL gestartet werden,
-übernehmen die Umgebung, die WSL beim Start von Windows bekommen hat. Mit `setx` gesetzte Variablen
-sieht WSL erst nach `wsl --shutdown`, und an Windows-Programme reicht WSL sie nur weiter, wenn sie
-zusätzlich in `WSLENV` stehen. Make-Variablen wirken sofort, stehen sichtbar im Makefile und gelten
-nur für den einen Aufruf.
+**ST Edge AI Core:** run the Windows installer, select at least **STM32 / Neural-ART (STM32N6)**,
+and install into a folder you can write to **without admin rights**, e.g. `C:\ST\STEdgeAI\4.0`.
+Not `C:\Program Files`: the loader writes into the validation app inside this installation on
+every run. Check: `C:\ST\STEdgeAI\4.0\Utilities\windows\stedgeai.exe --version` prints
+`ST Edge AI Core v4.0.1-…`.
 
-Für die Kette von Hand in `cmd` (Abschnitte 3 und 5) die Werte nur im aktuellen Fenster setzen:
+**STM32CubeIDE:** run the installer (admin rights once, for the ST-LINK driver), e.g. into
+`C:\ST\STM32CubeIDE_1.18.1`. You never need to open the IDE. Check the driver: with the board on
+the **ST-LINK socket** ([section 3](#3-board-setup)), Device Manager lists
+**STMicroelectronics STLink Virtual COM Port (COMx)** under "Ports (COM & LPT)".
+
+**uv:** in a normal PowerShell, `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+Then, in WSL, `uv.exe --version` must work (WSL finds Windows programs through the Windows `PATH`).
+uv brings its own Python; an existing msys2, Chocolatey or Store Python is not used.
+
+## 2. Paths
+
+The paths are **Make variables** in the [Makefile](Makefile) with defaults; no Windows
+environment variables are needed:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `STEDGEAI_DIR` | `C:/ST/STEdgeAI/4.0` | root of the ST Edge AI installation |
+| `CUBEIDE_DIR` | `C:/ST/STM32CubeIDE_1.18.1/STM32CubeIDE` | folder containing `stm32cubeide.exe` (with `plugins\` below it) |
+| `N6_WORK_DIR` | `C:/work/n6` | work folder on a **local Windows drive**: venv, `config.json`, compiled model |
+| `CUBEPROG_CLI` | default install path of the standalone CubeProgrammer | used if it exists, else the CubeIDE one |
+
+Override per call, always as Windows paths with `/`: `make -C firmware/stm32n6 setup N6_WORK_DIR=D:/n6`.
+
+**Why not Windows environment variables (`setx`)?** Processes started from WSL inherit the
+environment WSL got from Windows when it started. WSL only sees variables set with `setx` after
+`wsl --shutdown`, and it passes them on to Windows programs only if they are also listed in
+`WSLENV`. Make variables take effect immediately, are visible in the Makefile and apply to one
+call only.
+
+`make setup` creates the venv from [requirements.txt](requirements.txt) (ST's
+`scripts/ai_runner/requirements.txt` plus `colorama`, with `protobuf` pinned to 3.20.x) and
+writes `config.json` for ST's loader (forward slashes, no BOM).
+
+## 3. Board setup
+
+The NUCLEO-N657X0-Q has **two** USB-C sockets. Only the one labelled **ST-LINK** leads to the
+debugger with the virtual COM port. The other one (next to the Ethernet socket) goes straight to
+the STM32N6; without matching firmware it shows no USB device, but it can power the board.
+
+Tested setup with **two cables**:
+
+1. **Data:** USB cable from the PC into the **ST-LINK socket**. Use a cable known to carry data.
+2. **Power:** second USB-C cable into the **other socket** (next to Ethernet), from a USB-C port of
+   the PC or a USB-C power supply. Jumper **CN9 on 3-4** (power from this socket).
+3. Boot jumpers in **development mode**: **JP2 (BOOT1) on position 2** (pins 2-3), JP1 (BOOT0)
+   stays on position 1. In this mode the STM32N6 does not boot from the external flash, and the
+   debugger can load the validation app into RAM. In normal operation (boot from flash) both are
+   on position 1. The positions are printed on the board; forums sometimes swap the names JP1
+   and JP2, the board manual [UM3417](https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html#documentation)
+   is authoritative.
+4. Press **Reset** once or replug the board.
+
+The board stays in this mode for all measurements. `run_json.py` finds the COM port itself
+(USB ID `0483:3754` of the STLINK-V3EC).
+
+## 4. The chain by hand
+
+What the Make targets do, for debugging or trying options. In a `cmd` window, in the work folder
+created by `make setup`; the MLP as an example. Set the paths for this window only:
 
 ```bat
 set STEDGEAI_CORE_DIR=C:\ST\STEdgeAI\4.0
-set STM32CUBEIDE_DIR=C:\ST\STM32CubeIDE_1.18.1\STM32CubeIDE
 set N6_WORK_DIR=C:\work\n6
-```
-
-## 3. Arbeitsordner und Python-Umgebung
-
-In einem neuen `cmd`-Fenster:
-
-```bat
-mkdir "%N6_WORK_DIR%"
-cd /d "%N6_WORK_DIR%"
-uv venv .venv --python 3.11
-.venv\Scripts\activate
-uv pip install numpy "protobuf==3.20.3" "pyserial==3.4" "tqdm==4.50.2" colorama
-```
-
-Das sind die Pakete aus `%STEDGEAI_CORE_DIR%\scripts\ai_runner\requirements.txt`, mit zwei
-Korrekturen: `colorama` fehlt dort, wird aber gebraucht, und `protobuf` muss auf 3.20.x festgelegt
-werden (siehe [Stolperfallen](#stolperfallen)).
-
-Die `config.json` für das ST-Ladeskript anlegen. Sie braucht nur den Pfad zur CubeIDE, alle
-Werkzeuge findet das Skript darunter selbst. Der Befehl erzeugt die Datei aus der Umgebungsvariablen,
-damit Schrägstriche und Kodierung stimmen:
-
-```bat
-python -c "import json, os; json.dump({'compiler_type': 'gcc', 'cubeide_path': os.environ['STM32CUBEIDE_DIR'].replace(chr(92), '/')}, open('config.json', 'w'), indent=2)"
-type config.json
-```
-
-Prüfen, ob das Ladeskript alle Werkzeuge findet und die venv vollständig ist:
-
-```bat
-python "%STEDGEAI_CORE_DIR%\scripts\N6_scripts\n6_loader.py" --help
-set PYTHONPATH=%STEDGEAI_CORE_DIR%\scripts\ai_runner
-python -c "from stm_ai_runner import AiRunner; import google.protobuf as p; print('AiRunner OK, protobuf', p.__version__)"
-```
-
-## 4. Board vorbereiten
-
-Das NUCLEO-N657X0-Q hat **zwei** USB-C-Buchsen. Nur die mit **ST-LINK** beschriftete führt zum
-Debugger mit virtuellem COM-Port. Die andere (neben der Ethernet-Buchse) geht direkt an den
-STM32N6 und liefert ohne passende Firmware kein USB-Gerät, kann das Board aber mit Strom versorgen.
-
-Getesteter Aufbau mit **zwei Kabeln**:
-
-1. **Daten:** USB-Kabel vom PC in die **ST-LINK-Buchse**. Ein Kabel nehmen, das nachweislich
-   Daten überträgt.
-2. **Strom:** zweites USB-C-Kabel in die **andere Buchse** (neben Ethernet), an einen USB-C-Port
-   des PCs oder ein USB-C-Netzteil. Jumper **CN9 auf 3-4** (Versorgung über diese Buchse).
-3. Boot-Jumper auf **Development-Mode**: **JP2 (BOOT1) auf Position 2** (Pins 2-3), JP1 (BOOT0)
-   bleibt auf Position 1. Darin startet der STM32N6 keine Firmware aus dem externen Flash, und der
-   Debugger kann die Testanwendung in den RAM laden. Im Normalbetrieb (Boot aus dem Flash) stehen
-   beide auf Position 1. Die Positionen sind auf der Platine aufgedruckt; in Foren werden JP1 und
-   JP2 manchmal vertauscht benannt, maßgeblich ist das Board-Handbuch
-   [UM3417](https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html#documentation).
-4. Einmal **Reset** drücken oder das Board neu anstecken.
-
-Für die Messungen bleibt das Board dauerhaft in diesem Modus.
-
-Den COM-Port findest du im Geräte-Manager oder mit:
-
-```bat
-python -m serial.tools.list_ports -v
-```
-
-Gesucht ist der Eintrag mit `VID:PID=0483:3754` (STLINK-V3EC).
-
-## 5. Die Kette einmal von Hand
-
-Alle Befehle im `cmd`-Fenster mit aktivierter venv, im Arbeitsordner. Als Beispiel das kleine MLP.
-Modelle aus dem WSL-Repo zuerst auf das Windows-Laufwerk **kopieren**. `REPO` ist der Pfad des
-Repos, wie Windows ihn sieht (in WSL: `wslpath -w .` im Repo-Ordner):
-
-```bat
-cd /d "%N6_WORK_DIR%"
-.venv\Scripts\activate
-set PYTHONPATH=%STEDGEAI_CORE_DIR%\scripts\ai_runner
 set STEDGEAI=%STEDGEAI_CORE_DIR%\Utilities\windows\stedgeai.exe
-set REPO=\\wsl.localhost\Ubuntu-24.04\home\<wsl-benutzer>\Projekte\edge-inference-benchmarks
-copy "%REPO%\ml\outputs\edge_bench_mlp\int8_full\model.tflite" mlp_int8.tflite
+set PYTHONPATH=%STEDGEAI_CORE_DIR%\scripts\ai_runner
+cd /d "%N6_WORK_DIR%"
+.venv\Scripts\activate
 ```
 
-Welche Datei: `int8_full/model.tflite` (INT8 inklusive Ein- und Ausgang) oder
-`int8_qdq/model.onnx` (INT8 im Inneren, float am Ein- und Ausgang). Beide laufen auf der NPU.
-FP32-Modelle laufen nur auf der CPU, weil die NPU INT8 braucht.
+Copy the model to the work folder first; never hand a `\\wsl.localhost\...` path to the ST tools.
+From WSL: `cp ml/outputs/edge_bench_mlp/int8_full/model.tflite /mnt/c/work/n6/`.
 
-### 5.1 Analyse (ohne Board)
+`int8_full/model.tflite` is INT8 including input and output, `int8_qdq/model.onnx` is INT8 inside
+with float input and output. Both run on the NPU. FP32 models run on the CPU only, because the
+NPU needs INT8.
+
+**Analyze (no board):**
 
 ```bat
-"%STEDGEAI%" analyze -m mlp_int8.tflite --target stm32n6 --st-neural-art -o out_analyze
+"%STEDGEAI%" analyze -m model.tflite --target stm32n6 --st-neural-art -o out_analyze
 ```
 
-### 5.2 NPU-Kompilierung (ohne Board)
+**Compile for the NPU (no board), what `make generate` does:**
 
 ```bat
-"%STEDGEAI%" generate -m mlp_int8.tflite --target stm32n6 --st-neural-art -o st_ai_output
+"%STEDGEAI%" generate -m model.tflite --target stm32n6 --st-neural-art -o st_ai_output
 ```
 
-Worauf achten:
+Things to look at in the output:
 
-- **Epochs details:** wie viele Epochen `HW`, `SW` oder `hybrid` sind. `SW` bedeutet, dass ein Teil
-  des Modells auf der CPU läuft statt auf der NPU.
-- **Memory usage information:** Die Zeile `hyperRAM` muss bei **0 B** stehen. Das Nucleo hat kein
-  externes RAM, siehe [Stolperfallen](#stolperfallen).
-- In `st_ai_output\` liegen danach u. a. `network.c` und `network_atonbuf.xSPI2.raw` (die Gewichte
-  für das externe Flash).
+- **Epochs details:** how many epochs are `HW`, `SW` or `hybrid`. `SW` means part of the model
+  runs on the CPU instead of the NPU.
+- **Memory usage information:** the `hyperRAM` line must show **0 B**, the Nucleo has no external
+  RAM (`make generate` checks this).
+- `st_ai_output\` then contains `network.c` and `network_atonbuf.xSPI2.raw` (weights for the
+  external flash), among others.
 
-### 5.3 Auf das Board laden
+**Load onto the board, what `make load` does:**
 
 ```bat
 python "%STEDGEAI_CORE_DIR%\scripts\N6_scripts\n6_loader.py" --config config.json --build-config N6-Nucleo --network-file "%N6_WORK_DIR%\st_ai_output\network.c" --project-path "%STEDGEAI_CORE_DIR%\Projects\STM32N6570-DK\Applications\NPU_Validation"
 ```
 
-Das dauert beim ersten Mal einige Minuten (Build der Testanwendung). Am Ende muss stehen:
+It must end with:
 
 ```
 … Flashing memory xSPI2 -- 21.921 kB
@@ -246,35 +203,22 @@ Das dauert beim ersten Mal einige Minuten (Build der Testanwendung). Am Ende mus
 … Start operation achieved successfully
 ```
 
-Die Testanwendung liegt jetzt **nur im RAM**. Nach einem Stromausfall oder Ausstecken ist sie weg,
-dann diesen Schritt wiederholen.
+The app now lives **only in RAM**. After a power loss or unplugging it is gone; load it again.
 
-### 5.4 Messen und Profiling zurücklesen
-
-`COM5` durch deinen Port ersetzen. Die Baudrate **921600** immer mit angeben.
-
-Latenz gesamt und pro Epoche:
+**Measure and read back the profile** (replace `COM5` with your port, always with baud rate 921600):
 
 ```bat
+:: total and per-epoch latency
 python "%STEDGEAI_CORE_DIR%\scripts\ai_runner\examples\checker.py" -d serial:COM5:921600 --perf-only -b 10
-```
-
-Epochen den Original-Layern zugeordnet (laut ST experimentell):
-
-```bat
+:: epochs mapped to the original layers (experimental according to ST)
 python "%STEDGEAI_CORE_DIR%\scripts\ai_runner\examples\npu_profiler.py" -d serial:COM5:921600 -c "%N6_WORK_DIR%\st_ai_output\network.c" -b 10
+:: board output against the model on the PC, report in st_ai_output\network_validate_report.txt
+"%STEDGEAI%" validate -m model.tflite --target stm32n6 --mode target -d serial:COM5:921600
 ```
 
-Genauigkeit des Boards gegen das Modell auf dem PC, mit Bericht in
-`st_ai_output\network_validate_report.txt`:
+## 5. Reading the output
 
-```bat
-"%STEDGEAI%" validate -m mlp_int8.tflite --target stm32n6 --mode target -d serial:COM5:921600
-```
-
-## 6. Die Ausgabe lesen
-
-Ausschnitt aus `checker.py` für das MLP:
+Excerpt from `checker.py` for the MLP:
 
 ```
  duration                       :   0.100 ms by sample (0.098/0.113/0.005)
@@ -287,112 +231,100 @@ Ausschnitt aus `checker.py` für das MLP:
   HW: 56.6%, SW: 0.0%, SW ctrl: 43.4%
 ```
 
-- **Epoche statt Layer:** Die NPU arbeitet den Graphen in Epochen ab. Eine Epoche kann mehrere
-  Original-Layer enthalten (z. B. Dense + ReLU). Die Zuordnung zeigt `npu_profiler.py`.
-- **Drei Zyklenwerte** pro Zeile: Vorbereitung, Hardware (NPU rechnet), Nachbereitung, jeweils in
-  MCU-Zyklen bei 800 MHz.
-- **`HW` / `SW` / `SW ctrl`:** Anteil, in dem die NPU rechnet, die CPU Operatoren ausführt bzw. die
-  CPU die NPU nur ansteuert. Bei sehr kleinen Modellen ist `SW ctrl` hoch, weil die Ansteuerung
-  im Verhältnis zur Rechenarbeit teuer ist.
-- **Taktung:** Die Testanwendung läuft im Overdrive-Modus (MCU 800 MHz, NPU 1 GHz), siehe
-  `device.attrs` in der Ausgabe.
+- **Epochs instead of layers:** the NPU processes the graph in epochs. One epoch can contain several
+  original layers (e.g. Dense + ReLU). `npu_profiler.py` shows the mapping.
+- **Three cycle values** per row: preparation, hardware (NPU computing), post-processing, each in
+  MCU cycles at 800 MHz. `run_json.py` records the total per inference.
+- **`HW` / `SW` / `SW ctrl`:** share in which the NPU computes, the CPU runs operators, or the CPU
+  only drives the NPU. For very small models `SW ctrl` is high, because driving the NPU is
+  expensive compared with the actual work.
+- **Clocks:** the validation app runs in overdrive mode (MCU 800 MHz, NPU 1 GHz), see
+  `device.attrs` in the output.
+- **Flash and RAM in `results.json`** cover the model only (weights + network code, activations +
+  network state), not the whole validation app as on the nRF5340.
 
-## Stolperfallen
+## Pitfalls
 
-### Board und USB
+### Board and USB
 
-- **Kein COM-Port im Geräte-Manager, LEDs leuchten trotzdem:** falsche USB-C-Buchse oder ein Kabel,
-  das nur lädt. Siehe [Abschnitt 4](#4-board-vorbereiten).
-- **COM-Port da, aber Laden/Flashen scheitert mit nur einem Kabel:** Über die ST-LINK-Buchse allein
-  (CN9 auf 1-2, `STLK`) reichte die Versorgung im Test nicht für den STM32N6 mit der
-  Testanwendung (CPU 800 MHz, NPU 1 GHz). Mit CN9 auf 3-4 ohne zweites Kabel ist der Chip ganz
-  ohne Strom. Lösung: zwei Kabel wie in Abschnitt 4.
-- **LD9 (COM) leuchtet dauerhaft rot:** normal, der ST-LINK ist am PC angemeldet und gerade ohne
-  Debug-Verbindung. Während einer Verbindung blinkt sie rot/grün.
-- **Verbindung schlägt fehl oder Timeout beim Messen:** Es darf nur ein Programm gleichzeitig auf
-  ST-LINK und COM-Port zugreifen. STM32CubeIDE, die CubeProgrammer-GUI, STM32Cube AI Studio und
-  serielle Terminals vorher schließen.
-- **Nach dem Ausstecken antwortet das Board nicht mehr:** Die Testanwendung lag nur im RAM.
-  Schritt 5.3 wiederholen.
-- **`validate` bekommt keine Antwort:** Ohne Angabe nimmt `stedgeai` 115200 Baud, die Testanwendung
-  spricht 921600. Immer `-d serial:COMx:921600` angeben.
-- **Die COM-Nummer ändert sich:** an einem anderen USB-Port oder Dock vergibt Windows oft eine neue
-  Nummer. Mit `python -m serial.tools.list_ports -v` nachsehen.
-- **ST-LINK-Firmware-Update:** Bietet ein ST-Werkzeug ein Update des ST-LINK an, das Update nicht
-  abbrechen und das Board währenddessen nicht ausstecken. Im ST-Forum gibt es Berichte über
-  danach unbrauchbare ST-LINKs.
+- **No COM port in Device Manager, LEDs on anyway:** wrong USB-C socket or a charge-only cable.
+  See [section 3](#3-board-setup).
+- **COM port present, but loading fails with only one cable:** the ST-LINK socket alone (CN9 on
+  1-2, `STLK`) did not supply enough power for the STM32N6 with the validation app (CPU 800 MHz,
+  NPU 1 GHz) in testing. With CN9 on 3-4 and no second cable the chip has no power at all.
+  Solution: two cables as in section 3.
+- **`make load` fails with "Access port is not valid":** the debugger cannot reach the chip.
+  Usually power (see above) or another program holding the ST-LINK.
+- **LD9 (COM) is solid red:** normal; the ST-LINK is enumerated and has no debug connection.
+  It blinks red/green during a connection.
+- **Connection fails or times out while measuring:** only one program may use the ST-LINK and the
+  COM port at a time. Close STM32CubeIDE, the CubeProgrammer GUI, STM32Cube AI Studio and serial
+  terminals first.
+- **The board no longer answers after unplugging:** the validation app lived in RAM only. Run
+  `make load` again (or simply `make measure`).
+- **`validate` gets no answer:** without a baud rate `stedgeai` uses 115200, the validation app
+  speaks 921600. Always pass `-d serial:COMx:921600`.
+- **ST-LINK firmware update:** if an ST tool offers to update the ST-LINK, do not abort it and do not
+  unplug the board meanwhile. The ST forum has reports of ST-LINKs bricked that way.
 
 ### Python
 
-- **Nicht das msys2- oder Chocolatey-Python benutzen.** Dessen `venv` legt `bin\` statt
-  `Scripts\` an, `activate` funktioniert dann in `cmd` nicht („Das System kann den angegebenen Pfad
-  nicht finden“). Mit `where python` siehst du, welches Python zuerst gefunden wird. uv umgeht das,
-  weil es sein eigenes Python mitbringt.
-- **`Descriptors cannot be created directly` / „generated code is out of date“:** Die
-  `*_pb2.py`-Dateien von ST sind mit einem alten protoc erzeugt und laufen nicht mit protobuf ≥ 4.
-  Lösung: `protobuf==3.20.3`.
-- **`No module named 'colorama'`:** fehlt in der ST-`requirements.txt`, einfach nachinstallieren.
-- **`No module named 'stm_ai_runner'`:** `PYTHONPATH` ist im aktuellen Fenster nicht gesetzt.
-  `PYTHONPATH` bewusst **nicht** dauerhaft als Umgebungsvariable setzen, sonst sehen alle anderen
-  Python-Umgebungen auf dem Rechner die ST-Module.
+- **`Descriptors cannot be created directly` / "generated code is out of date":** ST's `*_pb2.py`
+  files were generated with an old protoc and fail with protobuf >= 4. Hence `protobuf==3.20.3`.
+- **`No module named 'colorama'`:** missing from ST's `requirements.txt`; included in ours.
+- **`No module named 'stm_ai_runner'`** (by hand only): `PYTHONPATH` is not set in this window. Do
+  **not** set it permanently, otherwise every other Python environment sees ST's modules.
+  `run_json.py` adds the path itself.
+- **msys2 or Chocolatey Python:** its `venv` creates `bin\` instead of `Scripts\`, so `activate`
+  fails in `cmd`. uv avoids this with its own Python.
 
-### Werkzeuge und Pfade
+### Tools and paths
 
-- **Andere `make`- oder `arm-none-eabi-gcc`-Versionen im `PATH`** (Chocolatey, msys2, ältere
-  Toolchains): stören das Ladeskript nicht, weil es über `cubeide_path` die Werkzeuge aus der
-  CubeIDE nimmt. Beim Aufruf von Hand bekommst du aber das erste aus dem `PATH`. Prüfen mit
-  `where make arm-none-eabi-gcc`.
-- **`setx PATH …` nicht benutzen:** `setx` kürzt Werte auf 1024 Zeichen. Beim üblichen
-  `setx PATH "%PATH%;…"` landet außerdem der komplette System-`Path` als Kopie im Benutzer-`Path`.
-  Den `Path` nur über den Dialog „Umgebungsvariablen für dieses Konto bearbeiten“ ändern.
-- **Benutzer- statt System-`Path` reicht:** Windows hängt den Benutzer-`Path` an den System-`Path`
-  an. Bei gleichnamigen Programmen gewinnt deshalb das aus dem System-`Path`.
-- **`config.json` wird nicht gelesen (`Bad Json syntax … at line: ï»¿{`):** Die Datei wurde mit
-  BOM gespeichert, z. B. von Windows PowerShell 5.1 mit `Set-Content -Encoding utf8`. Mit dem
-  `python -c …`-Befehl aus Abschnitt 3 erzeugen oder im Editor als „UTF-8“ ohne BOM speichern. In
-  der Datei immer Schrägstriche `/` verwenden, auch unter Windows.
-- **Ladeskript startet langsam:** Ohne weitere Angaben durchsucht es alle CubeIDE-Plugins nach den
-  Werkzeugen, das kann über eine Minute dauern. Schneller wird es, wenn du die Pfade in der
-  `config.json` direkt angibst (Beispiele in `%STEDGEAI_CORE_DIR%\scripts\N6_scripts\config.json`).
-- **Mehrere CubeIDE-Versionen installiert:** Das Ladeskript sucht nur unterhalb von `cubeide_path`
-  und nimmt dort bei mehreren Plugin-Versionen die neueste.
-- **Den eigenständigen CubeProgrammer verwenden:** Funktioniert das Flashen mit dem
-  CubeIDE-Programmer nicht, die [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html)
-  installieren und in der `config.json` zusätzlich
-  `"cubeProgrammerCLI_binary_path": "C:/Program Files/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI.exe"`
-  eintragen. Der Ablauf wurde vollständig mit Version 2.23 getestet.
-- **`compiler "gcc:arm-none-eabi-gcc" is not in the PATH` bei `analyze`/`generate`:** harmlos.
-  Es fehlt nur die Abschätzung der Code-Größe der Laufzeitbibliothek, die eigentliche Analyse läuft.
-- **Keine WSL-Pfade (`\\wsl.localhost\…`) an die ST-Werkzeuge übergeben.** `cmd` kann nicht in
-  UNC-Pfade wechseln, `make` scheitert daran, und der Zugriff ist langsam. Deshalb liegt alles in
-  `%N6_WORK_DIR%` auf einem lokalen Laufwerk, Modelle werden dorthin kopiert.
+- **Other `make` or `arm-none-eabi-gcc` versions in `PATH`** (Chocolatey, msys2, older toolchains):
+  do not disturb the loader, which takes the tools from CubeIDE via `cubeide_path`. By hand you get
+  the first one in `PATH`; check with `where make arm-none-eabi-gcc`.
+- **Do not use `setx PATH …`:** `setx` truncates values to 1024 characters, and the usual
+  `setx PATH "%PATH%;…"` copies the whole system `Path` into the user `Path`. Edit `Path` only in
+  the dialog "Edit environment variables for your account".
+- **`config.json` is not read (`Bad Json syntax … at line: ï»¿{`):** the file was saved with a BOM,
+  e.g. by Windows PowerShell 5.1 with `Set-Content -Encoding utf8`. `make setup` writes it without.
+  Always use forward slashes `/` in it, also on Windows.
+- **Loader starts slowly:** without further settings it searches all CubeIDE plugins for the tools,
+  which can take over a minute. Listing the paths in `config.json` directly is faster (examples
+  in `%STEDGEAI_CORE_DIR%\scripts\N6_scripts\config.json`).
+- **Several CubeIDE versions installed:** the loader searches only below `cubeide_path` and takes
+  the newest plugin version there.
+- **`compiler "gcc:arm-none-eabi-gcc" is not in the PATH` during `analyze`/`generate`:** harmless.
+  Only the code size estimate of the runtime library is missing; the analysis itself runs.
 
 ### ST Edge AI
 
-- **`stedgeai` scheint zu hängen** (z. B. bei `PASS: 0%`): Der Start dauert oft zehn Sekunden bis
-  über eine Minute, je nach Virenscanner. Kein Grund zum Abbrechen.
-- **Das Ladeskript verändert die ST-Installation:** Es kopiert `network.c` in
-  `%STEDGEAI_CORE_DIR%\Projects\STM32N6570-DK\Applications\NPU_Validation\` und baut dort nach
-  `armgcc\build\`. Das Projekt lässt sich nicht einfach herauskopieren, weil es über relative Pfade
-  auf `Middlewares\` der Installation zugreift. Folgen: Die Installation muss beschreibbar sein, und
-  es kann immer nur **ein** Modell gleichzeitig geladen werden.
-- **Der Projektname enthält „STM32N6570-DK“**, gilt aber auch für das Nucleo: Das Board wählt
-  `--build-config N6-Nucleo` (bzw. `N6-Nucleo-USB` für den schnelleren USB-Kanal, dafür ist ein
-  zweites Kabel an der anderen Buchse nötig).
-- **Das Nucleo hat kein externes RAM:** Die Standard-Speicherkonfiguration des NPU-Compilers enthält
-  aber das `hyperRAM` des Discovery-Kits. Kleine und mittlere Modelle (z. B. die MobileNets in
-  diesem Repo) passen in den internen Speicher. Zeigt der `generate`-Bericht bei `hyperRAM` mehr als
-  0 B, läuft das Modell auf dem Nucleo nicht. Dann braucht es ein kleineres Modell oder eine eigene
-  Speicherkonfiguration (`.mpool`).
-- **ONNX-Opset:** zur Wahl zwischen opset 13 und 14 siehe
+- **`stedgeai` seems to hang** (e.g. at `PASS: 0%`): startup often takes ten seconds to over a
+  minute, depending on the virus scanner. No reason to abort.
+- **The loader reports failure only in its output:** it exits with code 0 even when loading failed.
+  `dk.sh load` therefore checks for "Start operation achieved successfully"; otherwise a
+  measurement would run against the previously loaded model.
+- **The loader modifies the ST installation:** it copies `network.c` into
+  `%STEDGEAI_CORE_DIR%\Projects\STM32N6570-DK\Applications\NPU_Validation\` and builds in
+  `armgcc\build\` there. The project cannot simply be copied out, because it uses relative paths to
+  the installation's `Middlewares\`. Consequences: the installation must be writable, and only
+  **one** model can be loaded at a time.
+- **The project name says "STM32N6570-DK"**, but it also covers the Nucleo: the board is selected
+  with `--build-config N6-Nucleo` (or `N6-Nucleo-USB` for the faster USB channel, which needs a
+  second cable on the other socket).
+- **The Nucleo has no external RAM:** the NPU compiler's default memory map includes the
+  Discovery kit's `hyperRAM`. Small and medium models (e.g. the MobileNets in this repo) fit into
+  internal memory. If `generate` puts anything into `hyperRAM`, the model does not run on the
+  Nucleo and `make generate` stops; it then needs a smaller model or an own memory map (`.mpool`).
+- **ONNX opset:** for the choice between opset 13 and 14 see
   [docs/onnx_export_stm32n6.md](../../docs/onnx_export_stm32n6.md).
 
-## Weiterführend
+## Further reading
 
-Die vollständige ST-Doku liegt lokal unter `%STEDGEAI_CORE_DIR%\Documentation\`, vor allem:
+The full ST documentation is installed under `%STEDGEAI_CORE_DIR%\Documentation\`, in particular:
 
-- `stneuralart_getting_started.html`: der hier beschriebene Ablauf aus Sicht von ST, inklusive
-  Fehlersuche
-- `command_line_interface.html`: alle Optionen von `stedgeai`
-- `ai_runner_python_module.html`: die Python-API zum Messen, Grundlage für die Automatisierung
-- `stneuralart_operator_support.html` (online im ST-Doku-Portal): welche Operatoren auf der NPU laufen
+- `stneuralart_getting_started.html`: the flow described here from ST's point of view, including
+  troubleshooting
+- `command_line_interface.html`: all `stedgeai` options
+- `ai_runner_python_module.html`: the Python API used by `run_json.py`
+- `stneuralart_operator_support.html` (online in the ST docs portal): which operators run on the NPU

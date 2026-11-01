@@ -2,23 +2,27 @@
 
 Reproducible edge-AI pipeline: small regression models estimate distance from raw BLE Channel
 Sounding IQ samples, get quantized to full INT8 and are profiled on a Cortex-M33 (nRF5340,
-TFLite Micro + CMSIS-NN), in simulation (Renode) and on the real board.
-The focus is on deployment constraints (size, memory, latency), not on squeezing out accuracy.
+TFLite Micro + CMSIS-NN) in simulation (Renode) and on the real board, and on the Neural-ART NPU
+of an STM32N6. The focus is on deployment constraints (size, memory, latency), not on squeezing
+out accuracy.
 
-Everything runs in Docker. The host only needs Docker (plus J-Link tools for the real board).
+Everything runs in Docker. The host only needs Docker (plus J-Link tools for the nRF5340 board).
+The exception is the STM32N6: ST's tools are Windows programs, called from WSL through interop.
 
 ## Pipeline
 
 ```
 checkpoint (.pt) ─ export ─▶ fp32_full / int8_full (.tflite)  ─ codegen ─▶ firmware ─▶ Renode / nRF5340 DK
                              fp32_full / int8_qdq  (.onnx)        (C array)                      │
+                             int8_full / int8_qdq ─ stedgeai ─▶ ST validation app ─▶ STM32N6 ────┤
                                       │                                                          │
                                       └──────── size, MAE ──▶ results.json ◀── run.json (cycles, arena, flash, RAM)
 ```
 
 `ml/` and `firmware/` don't know each other: the Makefiles copy the generated C sources into the
 firmware and pipe the firmware's `run.json` back into `edge-ib results record`. Another device
-only has to produce the same `run.json`.
+only has to produce the same `run.json`: the STM32N6 does, without own firmware, because ST's
+compiler (`stedgeai`) builds the INT8 `.tflite` or `.onnx` into ST's validation app.
 
 ## Quickstart
 
@@ -38,12 +42,24 @@ No NVIDIA GPU? Add `GPU=0` to train on the CPU. `make -C ml help` lists all step
 The sample is only meant to run the pipeline end to end: models trained on it are not accurate.
 With a full dataset in `ml/data/full/` (same file names, not published) add `DATA=full`.
 On the real board use `make -C firmware/nrf5340 measure` instead of `sim` (build, flash, read UART,
-record), see [Hardware](#hardware).
+record), see [Hardware](#hardware). On the STM32N6, one command goes from checkpoint to
+`results.json`: `make -C ml ckpt-to-stm32n6 CKPT=checkpoints/<name>.pt [FORMAT=onnx]`
+(setup: [firmware/stm32n6/README.md](firmware/stm32n6/README.md)).
 
 ## Results
 
-nRF5340 DK, Cortex-M33 @ 128 MHz, one inference, full INT8. Produced with the full dataset
-(`DATA=full`, not published): MAE on 42,242 eval samples, INT8 calibration on 1,000 training samples.
+Produced with the full dataset (`DATA=full`, not published): MAE on 42,242 eval samples, INT8
+calibration on 1,000 training samples. All tables come from `make -C ml table TARGET=<device>`.
+
+**How to read the numbers:** this is a benchmark of edge deployment, not of model quality. The
+point is a feel for latency, RAM and flash per model, optimization and device. Absolute
+accuracies don't matter, and the models are not compared by MAE against each other (e.g.
+`mobilenet/relu` vs. `mobilenet`). MAE only serves as a sanity check within one model: does INT8
+quantization make it noticeably worse than FP32?
+
+### nRF5340 DK (Cortex-M33 @ 128 MHz, TFLite Micro + CMSIS-NN)
+
+One inference, full INT8.
 
 | Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Cycles (renode) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -59,23 +75,34 @@ Arena = tensor memory TFLite Micro actually needs; Flash and RAM = whole firmwar
 Renode is not cycle-accurate (the board needs 24–32 % more cycles here): good for comparing models,
 absolute numbers come from the board.
 
-### STM32N6 (Neural-ART NPU)
+### STM32N6 (NUCLEO-N657X0-Q, Neural-ART NPU)
 
-| Checkpoint | Model | Latency [ms] | Flash [KB] | RAM [KB] |
-|---|---|--:|--:|--:|
-| `mobilenet` | INT8 TFLite, NPU | 16.57 | 3176 | 153 |
-| `mobilenet` | INT8 ONNX, NPU | 15.72 | 3182 | 130 |
-| `mobilenet` | INT8 TFLite, CPU only | 73 | 1506 | 35 |
-| `mobilenet` | FP32 TFLite (NPU needs INT8) | 132 | 12129 | 18 |
-| `mobilenet/relu` | INT8 TFLite, NPU | 16.67 | 3163 | 139 |
-| `mobilenet/bad_simd` | INT8 TFLite, NPU | 17.25 | – | – |
+MCU @ 800 MHz, NPU @ 1 GHz; median of 20 inferences. Full INT8 TFLite:
 
-Same checkpoints and the same `.tflite` files as on the nRF5340, profiled by hand with the board
-attached in the STM32Cube AI Studio GUI, so this pipeline cannot reproduce them yet (a headless
-flow is planned). The numbers come from an export before the current INT8 calibration, hence no
-sha256 link to `results.json`. Flash and RAM include the runtime library. The ONNX row tests the
-other exchange format: the NPU compiler maps more ONNX operators than TFLite ones, see
-[docs/onnx_export_stm32n6.md](docs/onnx_export_stm32n6.md).
+| Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (stm32n6) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `edge_bench_mlp` | 1.399 | 1.376 | 25.9 | 79,056 | 99 | 0.4 | 38.4 | 0.4 |
+| `mobilenet` | 0.506 | 0.554 | 1894.7 | 5,412,545 | 6,766 | 11.2 | 1707.5 | 11.3 |
+| `mobilenet/bad_simd` | 0.507 | 0.508 | 1880.5 | 5,748,717 | 7,186 | 11.2 | 1772.1 | 11.3 |
+| `mobilenet/relu` | 0.470 | 0.477 | 1902.4 | 5,292,689 | 6,616 | 11.2 | 1696.3 | 11.3 |
+| `mobilenet/small` | 0.413 | 0.422 | 329.9 | 1,903,379 | 2,379 | 18.6 | 268.8 | 18.6 |
+| `mobilenet_v3_micro_2d` | 0.413 | 0.422 | 329.9 | 1,903,379 | 2,379 | 18.6 | 268.8 | 18.6 |
+
+ONNX (INT8 QDQ, float input and output). The NPU compiler maps more ONNX operators than TFLite
+ones, see [docs/onnx_export_stm32n6.md](docs/onnx_export_stm32n6.md):
+
+| Checkpoint | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (stm32n6-onnx) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `edge_bench_mlp` | 1.399 | 1.376 | 25.9 | 79,044 | 99 | 0.4 | 38.4 | 0.4 |
+| `mobilenet` | 0.506 | 0.554 | 1894.7 | 5,389,305 | 6,737 | 12.1 | 1739.4 | 12.1 |
+| `mobilenet/bad_simd` | 0.507 | 0.508 | 1880.5 | 5,727,805 | 7,160 | 12.1 | 1803.8 | 12.2 |
+| `mobilenet/relu` | 0.470 | 0.477 | 1902.4 | 4,784,145 | 5,980 | 7.0 | 1702.8 | 7.0 |
+| `mobilenet/small` | 0.413 | 0.422 | 329.9 | 1,816,429 | 2,271 | 24.9 | 291.3 | 25.0 |
+| `mobilenet_v3_micro_2d` | 0.413 | 0.422 | 329.9 | 1,816,429 | 2,271 | 24.9 | 291.3 | 25.0 |
+
+Cycles = MCU cycles per inference. Arena = activation memory; Flash and RAM cover the model only
+(weights + network code, activations + network state), not the whole app as on the nRF5340.
+MAE and size columns always refer to the TFLite export. No FP32 rows: the NPU needs INT8.
 
 ## Outputs
 
@@ -113,6 +140,9 @@ ml/                 Python package edge_ib (CLI: edge-ib): models, training, exp
 firmware/nrf5340/   Zephyr / NCS 2.6.0 app: runs the model, prints per-layer cycles and a RESULT line
   scripts/          run_json.py: UART log + ELF -> run.json
   Makefile          build, simulate, flash, measure
+firmware/stm32n6/   no own firmware: ST's compiler + validation app, called from WSL via interop
+  scripts/          dk.sh: Windows tool calls; run_json.py: profile over the COM port -> run.json
+  Makefile          setup, compile, load, measure
 docs/               setup guides and design notes
 compose.yaml        all containers: ml, ml-gpu, fw, renode
 ```
@@ -127,7 +157,8 @@ Training settings are fixed constants in [ml/src/edge_ib/config.py](ml/src/edge_
 |---|---|
 | Docker Engine + Compose v2 (Linux or WSL2), user in group `docker` | everything |
 | NVIDIA driver + [NVIDIA Container Toolkit](docs/nvidia_container_toolkit.md) | GPU training (`ml-gpu`), dev container |
-| J-Link, nrfutil, usbipd (WSL) — [setup guide](docs/wsl_flashing_setup.md) | real board only |
+| J-Link, nrfutil, usbipd (WSL) — [setup guide](docs/wsl_flashing_setup.md) | nRF5340 board only |
+| ST Edge AI Core, STM32CubeIDE, uv on Windows — [setup guide](firmware/stm32n6/README.md) | STM32N6 only |
 
 Containers run as UID 1000. If `id -u` differs: `docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)`.
 After changing code in `ml/` rebuild the image (`make -C ml images`), otherwise the old code runs.
@@ -136,6 +167,8 @@ After changing code in `ml/` rebuild the image (`make -C ml images`), otherwise 
 
 Variant #1 (Renode) gets 8 MB RAM / 16 MB flash, so any model runs. Variant #2 is the real
 nRF5340 DK (1 MB flash, 448 KB app RAM, 128 KB arena). Details: [firmware/nrf5340/README.md](firmware/nrf5340/README.md).
+The STM32N6 runs on a NUCLEO-N657X0-Q in development boot mode; the weights go to the external
+flash, the app into RAM. Details: [firmware/stm32n6/README.md](firmware/stm32n6/README.md).
 
 ### Development
 

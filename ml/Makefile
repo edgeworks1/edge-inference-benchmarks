@@ -13,7 +13,8 @@
 # CKPT_NAME: folder in outputs/ = checkpoint path inside checkpoints/ without .pt
 #            (checkpoints/mobilenet/bad_simd.pt -> outputs/mobilenet/bad_simd/{fp32_full,int8_full,int8_qdq}/)
 # TFLITE:    input of to-nrf
-# TARGET:    device whose measurements `table` shows (nrf5340dk or renode)
+# TARGET:    device whose measurements `table` shows (nrf5340dk, renode, stm32n6, stm32n6-onnx)
+# FORMAT:    model format for the STM32N6: tflite (int8_full) or onnx (int8_qdq)
 M      ?= mobilenet_v3_micro_2d
 GPU    ?= 1
 DATA   ?= sample
@@ -22,6 +23,7 @@ CKPT   ?= checkpoints/$(M).pt
 CKPT_NAME ?= $(patsubst checkpoints/%.pt,%,$(CKPT))
 TFLITE ?= outputs/$(CKPT_NAME)/int8_full/model.tflite
 TARGET ?= nrf5340dk
+FORMAT ?= tflite
 
 # ---- Internals ----
 HERE    := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -33,10 +35,13 @@ TRAIN   := $(RUN) $(if $(filter 1,$(GPU)),ml-gpu,ml)
 NOEVAL  := $(if $(filter 0,$(EVAL)),--no-eval)
 # Host paths: the ml package does not know the firmware, only this Makefile copies into it
 NRF_SRC := $(HERE)../firmware/nrf5340/src
-STM32N6_MODEL := $(HERE)../firmware/stm32n6/model
+STM32N6_DIR   := $(HERE)../firmware/stm32n6
+STM32N6_MODEL := $(STM32N6_DIR)/model
+# Exported file per FORMAT: full INT8 TFLite, or ONNX with INT8 inside and float I/O
+STM32N6_SRC   := $(if $(filter onnx,$(FORMAT)),outputs/$(CKPT_NAME)/int8_qdq/model.onnx,$(TFLITE))
 STEP    := $(MAKE) --no-print-directory -f $(lastword $(MAKEFILE_LIST))
 
-.PHONY: help models images train export tflite onnx to-nrf samples to-stm32n6 table format lint check train-export ckpt-to-nrf all
+.PHONY: help models images train export tflite onnx to-nrf samples to-stm32n6 table format lint check train-export ckpt-to-nrf all ckpt-to-stm32n6 all-stm32n6
 
 help:
 	@echo "Single steps:"
@@ -46,11 +51,13 @@ help:
 	@echo "  onnx         ONNX only (STM32N6, Jetson)      -> ml/outputs/$(CKPT_NAME)/*/model.onnx"
 	@echo "  to-nrf       INT8 TFLite into the firmware    -> firmware/nrf5340/src/ML_Models/"
 	@echo "  samples      test inputs into the firmware    -> firmware/nrf5340/src/data.hpp"
-	@echo "  to-stm32n6   INT8 TFLite for the STM32N6      -> firmware/stm32n6/model/"
+	@echo "  to-stm32n6   INT8 model for the STM32N6       -> firmware/stm32n6/model/ (FORMAT=$(FORMAT))"
 	@echo "Flows:"
 	@echo "  train-export train + export"
 	@echo "  ckpt-to-nrf  tflite + to-nrf (existing checkpoint)"
 	@echo "  all          train + tflite + to-nrf + samples (up to a buildable firmware)"
+	@echo "  ckpt-to-stm32n6  export + to-stm32n6 + measure on the board (existing checkpoint)"
+	@echo "  all-stm32n6      train + ckpt-to-stm32n6 (model to results.json in one go)"
 	@echo "Results:"
 	@echo "  table        all results.json as a Markdown table (TARGET=$(TARGET))"
 	@echo "Code quality:"
@@ -58,7 +65,7 @@ help:
 	@echo "  lint         report lint findings"
 	@echo "  check        formatting + lint, changes nothing (run before committing)"
 	@echo "Other: models, images"
-	@echo "Parameters: M=$(M) GPU=$(GPU) DATA=$(DATA) EVAL=$(EVAL) [CKPT=...] [TFLITE=...]"
+	@echo "Parameters: M=$(M) GPU=$(GPU) DATA=$(DATA) EVAL=$(EVAL) FORMAT=$(FORMAT) [CKPT=...] [TFLITE=...]"
 
 models:
 	$(ML) models
@@ -90,10 +97,12 @@ samples:
 	$(ML) codegen samples
 	cp $(HERE)outputs/samples/data.hpp $(NRF_SRC)/
 
-# The STM32N6 toolchain compiles the model file itself (stedgeai), so no codegen is needed
+# The STM32N6 toolchain compiles the model file itself (stedgeai), so no codegen is needed.
+# Exactly one model file stays in the folder: the firmware side reads the format from it.
 to-stm32n6:
 	mkdir -p $(STM32N6_MODEL)
-	cp $(HERE)$(TFLITE) $(STM32N6_MODEL)/model.tflite
+	rm -f $(STM32N6_MODEL)/model.*
+	cp $(HERE)$(STM32N6_SRC) $(STM32N6_MODEL)/model$(suffix $(STM32N6_SRC))
 
 table:
 	@$(COMPOSE) --progress quiet run --rm -T ml results table --target $(TARGET)
@@ -124,3 +133,13 @@ all:
 	$(STEP) tflite
 	$(STEP) to-nrf
 	$(STEP) samples
+
+# Export only the format the board needs: the targets are named like FORMAT (tflite / onnx)
+ckpt-to-stm32n6:
+	$(STEP) $(FORMAT)
+	$(STEP) to-stm32n6
+	$(MAKE) --no-print-directory -C $(STM32N6_DIR) measure
+
+all-stm32n6:
+	$(STEP) train
+	$(STEP) ckpt-to-stm32n6

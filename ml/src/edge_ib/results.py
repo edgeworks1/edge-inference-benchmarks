@@ -20,7 +20,8 @@ SCHEMA_VERSION = 1
 RESULTS_FILE = "results.json"
 REQUIRED_RUN_KEYS = {"target", "model_sha256", "cycles", "latency_us"}
 MISSING = "–"  # placeholder in the Markdown table
-SIMULATOR = "renode"  # its cycles are shown next to every device as a reference
+# Simulator of a device: its cycles are shown next to the device's as a reference
+SIMULATORS = {"nrf5340dk": "renode"}
 
 
 def sha256(path: Path) -> str:
@@ -134,16 +135,16 @@ def _drop_stale_targets(results: dict[str, Any]) -> None:
 def markdown_table(output_root: Path, target: str) -> str:
     """Summarize all results as a Markdown table: one row per checkpoint, metrics of ``target``.
 
-    For a real device, the simulator cycles are added as a second column for comparison.
+    For a device with a simulator, the simulator cycles are added as a second column.
     """
-    with_simulator = target != SIMULATOR
+    simulator = SIMULATORS.get(target)
     columns = [
         "Checkpoint",
         "FP32 MAE [m]",
         "INT8 MAE [m]",
         "INT8 size [KiB]",
         f"Cycles ({target})",
-        *([f"Cycles ({SIMULATOR})"] if with_simulator else []),
+        *([f"Cycles ({simulator})"] if simulator else []),
         "Latency [µs]",
         "Arena [KiB]",
         "Flash [KiB]",
@@ -152,27 +153,27 @@ def markdown_table(output_root: Path, target: str) -> str:
     header = [_markdown_row(columns), "|---|" + "--:|" * (len(columns) - 1)]
     all_results = [load(path) for path in output_root.glob(f"**/{RESULTS_FILE}")]
     rows = [
-        _table_row(results, target, with_simulator)
+        _table_row(results, target, simulator)
         for results in sorted(all_results, key=lambda r: r["checkpoint"])
     ]
     return "\n".join(header + rows)
 
 
-def _table_row(results: dict[str, Any], target: str, with_simulator: bool) -> str:
+def _table_row(results: dict[str, Any], target: str, simulator: str | None) -> str:
     """Format one checkpoint's results as a Markdown table row."""
     artifacts = results.get("artifacts", {})
     fp32 = artifacts.get("fp32_full/model.tflite", {})
     int8 = artifacts.get("int8_full/model.tflite", {})
     targets = results.get("targets", {})
     run = targets.get(target, {})
-    simulator_cycles = targets.get(SIMULATOR, {}).get("cycles")
+    simulator_cycles = targets.get(simulator, {}).get("cycles")
     cells = [
         f"`{results['checkpoint']}`",
         _format_mae(fp32.get("mae_m")),
         _format_mae(int8.get("mae_m")),
         _format_kib(int8.get("size_bytes")),
         _format_count(run.get("cycles")),
-        *([_format_count(simulator_cycles)] if with_simulator else []),
+        *([_format_count(simulator_cycles)] if simulator else []),
         _format_count(run.get("latency_us")),
         _format_kib(run.get("arena_used_bytes")),
         _format_kib(run.get("flash_bytes")),

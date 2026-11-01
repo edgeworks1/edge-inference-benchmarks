@@ -3,7 +3,7 @@
 # scripts/dk.sh inside a Windows work folder; nothing here runs in Docker (README.md explains why).
 #
 #   make setup      create the Python venv and config.json in the work folder (once)
-#   make generate   compile model/model.tflite for the NPU (stedgeai generate), no board needed
+#   make generate   compile model/model.{tflite,onnx} for the NPU (stedgeai generate), no board needed
 #   make load       generate + build the ST validation app with it and start it on the board
 #   make measure    load + profile on the board, record results -> ml/outputs/<checkpoint>/results.json
 #
@@ -21,16 +21,17 @@ N6_WORK_DIR  ?= C:/work/n6
 CUBEPROG_CLI ?= C:/Program Files/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI.exe
 export STEDGEAI_DIR CUBEIDE_DIR N6_WORK_DIR CUBEPROG_CLI
 
-# Device name in results.json
-TARGET := stm32n6
-export TARGET
-
 # Folder of this Makefile -> works from any current directory
 HERE     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE  := docker compose -f $(HERE)../../compose.yaml
 DK       := $(HERE)scripts/dk.sh
-MODEL    := $(HERE)model/model.tflite
 RUN_JSON := $(HERE)build/run.json
+
+# make -C ml to-stm32n6 [FORMAT=onnx] leaves exactly one model file here. Its format decides the
+# device name in results.json, so a TFLite and an ONNX measurement never overwrite each other.
+MODEL  := $(or $(wildcard $(HERE)model/model.*),$(HERE)model/model.tflite)
+TARGET := stm32n6$(if $(filter %.onnx,$(MODEL)),-onnx)
+export TARGET
 
 .PHONY: setup generate load measure
 
