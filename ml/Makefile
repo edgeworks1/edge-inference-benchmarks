@@ -6,7 +6,7 @@
 # ---- Parameters (override on the command line: make -C ml all M=mobilenet_v3_micro_2d) ----
 # (Comments deliberately NOT after the values: make would keep the spaces in front of them)
 # M:         model name from `make -C ml models`
-# GPU:       1 = train on the GPU (service ml-gpu), 0 = on the CPU (service ml)
+# GPU:       0 = train on the CPU (service ml, default), 1 = on an NVIDIA GPU (service ml-gpu)
 # DATA:      dataset folder in ml/data/: sample (public, default) or full (not in the repo)
 # EVAL:      0 = export without MAE evaluation (faster)
 # CKPT:      input of export/tflite/onnx
@@ -16,7 +16,7 @@
 # TARGET:    device whose measurements `table` shows (nrf5340dk, renode, stm32n6, stm32n6-onnx)
 # FORMAT:    model format for the STM32N6: tflite (int8_full) or onnx (int8_qdq)
 M      ?= mobilenet_v3_micro_2d
-GPU    ?= 1
+GPU    ?= 0
 DATA   ?= sample
 EVAL   ?= 1
 CKPT   ?= checkpoints/$(M).pt
@@ -40,6 +40,9 @@ STM32N6_MODEL := $(STM32N6_DIR)/model
 # Exported file per FORMAT: full INT8 TFLite, or ONNX with INT8 inside and float I/O
 STM32N6_SRC   := $(if $(filter onnx,$(FORMAT)),outputs/$(CKPT_NAME)/int8_qdq/model.onnx,$(TFLITE))
 STEP    := $(MAKE) --no-print-directory -f $(lastword $(MAKEFILE_LIST))
+# Mounted by the ml service. Created here as your user: Compose would create them as root
+# (create_host_path: false in compose.yaml forbids that), and the container could not write.
+DIRS    := $(HERE)checkpoints $(HERE)outputs
 
 .PHONY: help models images train export tflite onnx to-nrf samples to-stm32n6 table format lint check train-export ckpt-to-nrf all ckpt-to-stm32n6 all-stm32n6
 
@@ -67,12 +70,20 @@ help:
 	@echo "Other: models, images"
 	@echo "Parameters: M=$(M) GPU=$(GPU) DATA=$(DATA) EVAL=$(EVAL) FORMAT=$(FORMAT) [CKPT=...] [TFLITE=...]"
 
+# Every target that starts the ml service needs the mounted folders. Order-only (|): only their
+# existence counts, not their timestamp. mkdir -p never touches an existing folder.
+models train export tflite onnx to-nrf samples table: | $(DIRS)
+
+$(DIRS):
+	mkdir -p $@
+
 models:
 	$(ML) models
 
-# After changes to ml/src, the Dockerfile, pyproject.toml or uv.lock, otherwise old code runs
+# After changes to ml/src, the Dockerfile, pyproject.toml or uv.lock, otherwise old code runs.
+# The CUDA image (several GB) is only built with GPU=1.
 images:
-	$(COMPOSE) build ml ml-gpu ml-dev
+	$(COMPOSE) build ml ml-dev $(if $(filter 1,$(GPU)),ml-gpu)
 
 # ---- Single steps ----
 train:
@@ -128,6 +139,7 @@ ckpt-to-nrf:
 	$(STEP) tflite
 	$(STEP) to-nrf
 
+# Change export file (here tflite) or firmware target (here to-nrf) for your specific hardware
 all:
 	$(STEP) train
 	$(STEP) tflite
