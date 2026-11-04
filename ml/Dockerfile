@@ -69,9 +69,10 @@ CMD ["--help"]
 FROM base AS dev
 ARG TORCH_VARIANT
 
-# git for commits from inside the container (VS Code forwards .gitconfig and credentials)
+# git for commits from inside the container (VS Code forwards .gitconfig and credentials),
+# make for the example targets in ml/experiments/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git make \
     && rm -rf /var/lib/apt/lists/*
 
 # uv must use the venv from base, not /workspace/ml/.venv (that one belongs to the host)

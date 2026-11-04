@@ -1,6 +1,7 @@
 # NVIDIA Container Toolkit (GPU training in Docker)
 
-Only needed for the `ml-gpu` service and the dev container. The CPU service `ml` works without it.
+Only needed for the `ml-gpu` service and the GPU dev container (`.devcontainer/gpu/`). The CPU
+service `ml` and the CPU dev container work without it.
 
 Containers cannot see the GPU on their own. The toolkit mounts the host's driver and GPU
 device into the container at start-up, so images stay driver-free and portable. Without it,
