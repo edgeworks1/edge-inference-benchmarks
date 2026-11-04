@@ -2,7 +2,7 @@
 # Runs on the host (WSL). The ST tools are Windows programs, called through WSL interop by
 # scripts/dk.sh inside a Windows work folder; nothing here runs in Docker (README.md explains why).
 #
-#   make setup      create the Python venv and config.json in the work folder (once)
+#   make setup      create or update the work folder, venv and config.json (generate runs it too)
 #   make generate   compile model/model.{tflite,onnx} for the NPU (stedgeai generate), no board needed
 #   make load       generate + build the ST validation app with it and start it on the board
 #   make measure    load + profile on the board, record results -> ml/outputs/<checkpoint>/results.json

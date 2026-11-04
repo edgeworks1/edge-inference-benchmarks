@@ -28,7 +28,6 @@ From the repo root, once the tools are installed ([section 1](#1-installation)) 
 prepared ([section 3](#3-board-setup)):
 
 ```bash
-make -C firmware/stm32n6 setup                                       # once: venv + config.json
 make -C ml ckpt-to-stm32n6 CKPT=checkpoints/edge_bench_mlp.pt DATA=full              # TFLite
 make -C ml ckpt-to-stm32n6 CKPT=checkpoints/edge_bench_mlp.pt DATA=full FORMAT=onnx  # ONNX
 make -C ml table TARGET=stm32n6
@@ -39,8 +38,8 @@ trains first. One run takes 1.5 to 4 minutes, mostly building the validation app
 
 | Target | What it does | Board |
 |---|---|---|
-| `make setup` | create the Python venv and `config.json` in the work folder (once) | no |
-| `make generate` | compile `model/model.*` for the NPU; fails if it needs external RAM | no |
+| `make setup` | create or update the work folder, venv and `config.json`; optional, `generate` runs it | no |
+| `make generate` | `setup`, then compile `model/model.*` for the NPU; fails if it needs external RAM | no |
 | `make load` | `generate`, then build the validation app with it and start it | yes |
 | `make measure` | `load`, then profile 20 inferences and record the medians | yes |
 
@@ -83,7 +82,7 @@ internal folder names that ST's loader searches for may change.
 Nothing else. Arm compiler, `make` and programmer are **not** installed separately and **not**
 added to `PATH`: ST's loader takes them from the CubeIDE installation. The standalone
 [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) is optional; if it
-is installed in its default location, `make setup` uses it. All ST downloads need a free myST account.
+is installed in its default location, it is used. All ST downloads need a free myST account.
 
 **ST Edge AI Core:** run the Windows installer, select at least **STM32 / Neural-ART (STM32N6)**,
 and install into a folder you can write to **without admin rights**, e.g. `C:\ST\STEdgeAI\4.0`.
@@ -112,7 +111,7 @@ environment variables are needed:
 | `N6_WORK_DIR` | `C:/work/n6` | work folder on a **local Windows drive**: venv, `config.json`, compiled model |
 | `CUBEPROG_CLI` | default install path of the standalone CubeProgrammer | used if it exists, else the CubeIDE one |
 
-Override per call, always as Windows paths with `/`: `make -C firmware/stm32n6 setup N6_WORK_DIR=D:/n6`.
+Override per call, always as Windows paths with `/`: `make -C firmware/stm32n6 measure N6_WORK_DIR=D:/n6`.
 
 **Why not Windows environment variables (`setx`)?** Processes started from WSL inherit the
 environment WSL got from Windows when it started. WSL only sees variables set with `setx` after
@@ -120,9 +119,11 @@ environment WSL got from Windows when it started. WSL only sees variables set wi
 `WSLENV`. Make variables take effect immediately, are visible in the Makefile and apply to one
 call only.
 
-`make setup` creates the venv from [requirements.txt](requirements.txt) (ST's
+There is no manual setup step: every `make generate` (and so every `load` and `measure`) first
+creates the work folder if needed, syncs the venv with [requirements.txt](requirements.txt) (ST's
 `scripts/ai_runner/requirements.txt` plus `colorama`, with `protobuf` pinned to 3.20.x) and
-writes `config.json` for ST's loader (forward slashes, no BOM).
+writes `config.json` for ST's loader (forward slashes, no BOM). Once installed this takes about
+1.5 s, and the venv always matches the repo, also after a `git pull`.
 
 ## 3. Board setup
 
@@ -149,7 +150,7 @@ The board stays in this mode for all measurements. `run_json.py` finds the COM p
 ## 4. The chain by hand
 
 What the Make targets do, for debugging or trying options. In a `cmd` window, in the work folder
-created by `make setup`; the MLP as an example. Set the paths for this window only:
+created by `make generate`; the MLP as an example. Set the paths for this window only:
 
 ```bat
 set STEDGEAI_CORE_DIR=C:\ST\STEdgeAI\4.0
@@ -287,7 +288,7 @@ Excerpt from `checker.py` for the MLP:
   `setx PATH "%PATH%;…"` copies the whole system `Path` into the user `Path`. Edit `Path` only in
   the dialog "Edit environment variables for your account".
 - **`config.json` is not read (`Bad Json syntax … at line: ï»¿{`):** the file was saved with a BOM,
-  e.g. by Windows PowerShell 5.1 with `Set-Content -Encoding utf8`. `make setup` writes it without.
+  e.g. by Windows PowerShell 5.1 with `Set-Content -Encoding utf8`. `dk.sh` writes it without.
   Always use forward slashes `/` in it, also on Windows.
 - **Loader starts slowly:** without further settings it searches all CubeIDE plugins for the tools,
   which can take over a minute. Listing the paths in `config.json` directly is faster (examples

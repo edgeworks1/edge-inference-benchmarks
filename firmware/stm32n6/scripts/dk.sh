@@ -2,8 +2,8 @@
 # Host-side helpers for the STM32N6 (NUCLEO-N657X0-Q). The ST tools are Windows programs: they run
 # through WSL interop inside the Windows work folder $N6_WORK_DIR. Called by the Makefile.
 #
-#   dk.sh setup              create the Python venv and config.json in the work folder
-#   dk.sh generate <model>   copy a .tflite/.onnx into the work folder and compile it for the NPU
+#   dk.sh setup              create or update the work folder, venv and config.json
+#   dk.sh generate <model>   setup, then copy a .tflite/.onnx into the work folder and compile it
 #   dk.sh load               build the ST validation app with the compiled model and start it
 #   dk.sh measure <model> <run.json>   profile the loaded model and write run.json
 #
@@ -53,6 +53,8 @@ write_loader_config() {
     cat "$WORK/config.json"
 }
 
+# Idempotent and fast (~1.5 s once installed), so generate runs it every time: the venv always
+# matches requirements.txt in the repo, also after a git pull.
 setup() {
     [[ -f $STEDGEAI ]] || fail "stedgeai not found: $STEDGEAI (set STEDGEAI_DIR)"
     [[ -d $(wslpath -u "$CUBEIDE_DIR")/plugins ]] || fail "no STM32CubeIDE in $CUBEIDE_DIR (set CUBEIDE_DIR)"
@@ -70,13 +72,14 @@ setup() {
 generate() {
     local model=$1 name
     [[ -f $model ]] || fail "model not found: $model (run make -C ml to-stm32n6 first)"
-    [[ -f $WORK/$PYTHON ]] || fail "no venv in $N6_WORK_DIR (run make setup first)"
     name=$(basename "$model")
 
-    copy_scripts
+    setup
     cp "$model" "$WORK/$name"
     rm -rf "$WORK/st_ai_output"
-    in_work_dir "$STEDGEAI" generate -m "$name" --target stm32n6 --st-neural-art -o st_ai_output
+    # No stdin: without a terminal (CI, IDE task, piped make) stedgeai otherwise hangs forever
+    in_work_dir "$STEDGEAI" generate -m "$name" --target stm32n6 --st-neural-art -o st_ai_output \
+        < /dev/null
     in_work_dir "$PYTHON" scripts/run_json.py check st_ai_output/network_c_info.json
 }
 
