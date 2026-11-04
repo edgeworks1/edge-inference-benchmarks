@@ -1,22 +1,22 @@
 // VS Code dev container: "Dev Containers: Reopen in Container"
-// Builds the "dev" stage of ml/Dockerfile (GPU variant) and mounts the repo at /workspace.
+// CPU variant (default, runs everywhere): builds the "dev" stage of ml/Dockerfile with CPU torch
+// and mounts the repo at /workspace. With an NVIDIA GPU use ../gpu/ instead.
 {
-  "name": "Edge Inference Benchmarks (dev, GPU)",
+  "name": "Edge Inference Benchmarks (dev, CPU)",
 
   // ---- Build (like docker build) ----
-  // Paths are relative to this file
+  // Paths are relative to this file (two levels below the repo root)
   "build": {
-    "dockerfile": "../ml/Dockerfile",
-    "context": "../ml",
+    "dockerfile": "../../ml/Dockerfile",
+    "context": "../../ml",
     "target": "dev", // build up to the "dev" stage, not further
-    "args": { "TORCH_VARIANT": "cu130" }
+    "args": { "TORCH_VARIANT": "cpu" }
   },
 
   // ---- Run (like docker run) ----
   // Repo at /workspace, NOT at /app: the venv from the base stage lives there
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind", // localWorkspaceFolder = path on the host
   "workspaceFolder": "/workspace",
-  "runArgs": ["--gpus=all"],
 
   // Named volumes (managed by Docker, not in the repo): survive "Rebuild Container"
   "mounts": [
