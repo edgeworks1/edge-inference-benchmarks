@@ -1,7 +1,5 @@
-# =============================================================================
 # Build environment for the nRF5340 firmware (Zephyr RTOS / nRF Connect SDK v2.6.0)
 # Tools and SDK live in the image; the application code is mounted as a volume.
-# =============================================================================
 FROM python:3.11-slim-trixie AS build
 
 # Native host tools for Zephyr (CMake, Ninja generator, devicetree and Kconfig)
@@ -65,10 +63,8 @@ RUN groupadd --gid ${GID} app \
 WORKDIR /app
 USER app
 
-# =============================================================================
 # Stage "renode": nRF5340 simulation (independent of SDK and compiler -> small image)
 # Gets the built ELF through the mount (build/), not from the build stage.
-# =============================================================================
 FROM debian:trixie-slim AS renode
 
 # Portable dotnet variant (ships its own .NET runtime), sha256-verified

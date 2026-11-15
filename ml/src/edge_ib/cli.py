@@ -85,10 +85,7 @@ def export(
         onnx_opset=onnx_opset,
         evaluate=evaluate,
     )
-    artifacts = export_checkpoint(checkpoint, out_dir or cfg.OUTPUT_DIR, options)
-    print("\nArtifacts:")
-    for name, path in artifacts.items():
-        print(f"  {name:20s} {path}")
+    export_checkpoint(checkpoint, out_dir or cfg.OUTPUT_DIR, options)
 
 
 @codegen_app.command("model")
@@ -110,7 +107,7 @@ def codegen_samples(
         Path | None, typer.Option("--out-dir", "-o", help="Default: <output dir>/samples.")
     ] = None,
     num_samples: Annotated[int, typer.Option("--num-samples", "-n")] = 10,
-    seed: int = 34,
+    seed: int = cfg.SEED,
 ) -> None:
     """Draw reproducible eval samples as data.hpp (MCU) and .npy (Jetson/PC)."""
     from edge_ib.codegen import write_test_samples

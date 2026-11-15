@@ -20,8 +20,12 @@ GPU    ?= 0
 DATA   ?= sample
 EVAL   ?= 1
 CKPT   ?= checkpoints/$(M).pt
+# prune "checkpoints/" and ".pt" from the CKPT path for creating the output folders
 CKPT_NAME ?= $(patsubst checkpoints/%.pt,%,$(CKPT))
+
+# Exported INT8 models (paths relative to ml/, derived from CKPT_NAME)
 TFLITE ?= outputs/$(CKPT_NAME)/int8_full/model.tflite
+ONNX   ?= outputs/$(CKPT_NAME)/int8_qdq/model.onnx
 TARGET ?= nrf5340dk
 FORMAT ?= tflite
 
@@ -38,7 +42,7 @@ NRF_SRC := $(HERE)../firmware/nrf5340/src
 STM32N6_DIR   := $(HERE)../firmware/stm32n6
 STM32N6_MODEL := $(STM32N6_DIR)/model
 # Exported file per FORMAT: full INT8 TFLite, or ONNX with INT8 inside and float I/O
-STM32N6_SRC   := $(if $(filter onnx,$(FORMAT)),outputs/$(CKPT_NAME)/int8_qdq/model.onnx,$(TFLITE))
+STM32N6_SRC   := $(if $(filter onnx,$(FORMAT)),$(ONNX),$(TFLITE))
 STEP    := $(MAKE) --no-print-directory -f $(lastword $(MAKEFILE_LIST))
 # Mounted by the ml service. Created here as your user: Compose would create them as root
 # (create_host_path: false in compose.yaml forbids that), and the container could not write.

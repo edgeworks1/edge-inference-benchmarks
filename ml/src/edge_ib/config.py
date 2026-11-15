@@ -49,6 +49,11 @@ EVAL_DATA_PATH = DATA_DIR / "eval.parquet"
 OUTPUT_DIR = _dir_from_env("EDGE_IB_OUTPUT_DIR", PROJECT_ROOT / "outputs")
 CHECKPOINT_DIR = _dir_from_env("EDGE_IB_CHECKPOINT_DIR", PROJECT_ROOT / "checkpoints")
 
+# Export subfolders per checkpoint; ml/Makefile and the docs use the same names
+FP32_DIR = "fp32_full"
+INT8_FULL_DIR = "int8_full"
+INT8_QDQ_DIR = "int8_qdq"
+
 
 # ============================================================
 # Dataset schema
@@ -67,6 +72,10 @@ IQ_REMOTE_Q = [f"Q_remote_{i}" for i in VALID_IQ_INDICES]
 # reshape it back into a 4 x 75 image.
 FEATURES_RAW_IQ_ALL = IQ_LOCAL_I + IQ_LOCAL_Q + IQ_REMOTE_I + IQ_REMOTE_Q
 NUM_FEATURES = len(FEATURES_RAW_IQ_ALL)
+
+# Tensor names in the exported ONNX models
+ONNX_INPUT_NAME = "iq_input"
+ONNX_OUTPUT_NAME = "distance_m"
 
 
 # ============================================================

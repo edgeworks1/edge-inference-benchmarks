@@ -1,8 +1,8 @@
 """Checkpoints: the hand-off between training and export.
 
 A checkpoint stores the trained weights plus everything needed to rebuild and evaluate the
-model later: registry name, constructor arguments, training settings, input shape and the
-dataset schema. Export never needs the training code state of back then.
+model later: registry name, constructor arguments, training settings, loss curve, input shape
+and the dataset schema. Export never needs the training code state of back then.
 """
 
 from pathlib import Path
@@ -24,6 +24,7 @@ def save_checkpoint(
     model_name: str,
     model_kwargs: dict[str, Any],
     eval_mae: float,
+    epoch_losses: list[float],
 ) -> None:
     """Save the trained weights together with all metadata needed to rebuild the model."""
     checkpoint = {
@@ -33,6 +34,7 @@ def save_checkpoint(
         "model_state_dict": _cpu_state_dict(model),
         "run_config": _training_settings(),
         "eval_mae": eval_mae,
+        "epoch_losses": epoch_losses,
         "input_shape": [1, cfg.NUM_FEATURES],
         "feature_names": list(cfg.FEATURES_RAW_IQ_ALL),
         "target": cfg.TARGET,

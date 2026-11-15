@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from edge_ib import config as cfg
+
 SCHEMA_VERSION = 1
 RESULTS_FILE = "results.json"
 REQUIRED_RUN_KEYS = {"target", "model_sha256", "cycles", "latency_us"}
@@ -39,9 +41,7 @@ def save(path: Path, results: dict[str, Any]) -> None:
     path.write_text(json.dumps(results, indent=2) + "\n")
 
 
-# ============================================================
 # Writing
-# ============================================================
 def record_export(
     run_dir: Path,
     checkpoint_name: str,
@@ -129,9 +129,7 @@ def _drop_stale_targets(results: dict[str, Any]) -> None:
     }
 
 
-# ============================================================
 # Reporting
-# ============================================================
 def markdown_table(output_root: Path, target: str) -> str:
     """Summarize all results as a Markdown table: one row per checkpoint, metrics of ``target``.
 
@@ -162,8 +160,8 @@ def markdown_table(output_root: Path, target: str) -> str:
 def _table_row(results: dict[str, Any], target: str, simulator: str | None) -> str:
     """Format one checkpoint's results as a Markdown table row."""
     artifacts = results.get("artifacts", {})
-    fp32 = artifacts.get("fp32_full/model.tflite", {})
-    int8 = artifacts.get("int8_full/model.tflite", {})
+    fp32 = artifacts.get(f"{cfg.FP32_DIR}/model.tflite", {})
+    int8 = artifacts.get(f"{cfg.INT8_FULL_DIR}/model.tflite", {})
     targets = results.get("targets", {})
     run = targets.get(target, {})
     simulator_cycles = targets.get(simulator, {}).get("cycles")

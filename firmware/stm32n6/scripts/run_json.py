@@ -24,9 +24,7 @@ TOTAL_CYCLES_INDEX = 3
 EXTERNAL_RAM_POOL = "hyperRAM"
 
 
-# ============================================================
 # Compiled model (network_c_info.json from stedgeai generate)
-# ============================================================
 def footprint(c_info: dict[str, Any]) -> dict[str, int]:
     """Return weights, activations and the generated network code in bytes."""
     memory = c_info["memory_footprint"]
@@ -55,9 +53,7 @@ def check(c_info: dict[str, Any]) -> None:
         sys.exit(f"Model needs {external:,} B in {EXTERNAL_RAM_POOL}, the Nucleo has none.")
 
 
-# ============================================================
 # Board (ST's AiRunner over the ST-LINK virtual COM port)
-# ============================================================
 def find_stlink_port() -> str:
     """Return the COM port of the first connected STLINK-V3EC."""
     from serial.tools import list_ports
@@ -96,9 +92,7 @@ def measurement(profiler: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# ============================================================
 # run.json
-# ============================================================
 def run_json(target: str, model: Path, c_info: dict[str, Any], profiler: dict[str, Any]) -> dict:
     """Combine model hash, board measurement and compiled footprint into the run.json format.
 

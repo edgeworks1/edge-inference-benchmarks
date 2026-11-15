@@ -25,13 +25,6 @@ from edge_ib.evaluation import evaluate_tflite
 from edge_ib.quantization import quantize_onnx_int8_qdq, quantize_tflite_full_int8
 from edge_ib.results import record_export
 
-FP32 = "fp32_full"
-INT8_FULL = "int8_full"
-INT8_QDQ = "int8_qdq"
-
-ONNX_INPUT_NAME = "iq_input"
-ONNX_OUTPUT_NAME = "distance_m"
-
 
 @dataclass(frozen=True)
 class ExportOptions:
@@ -69,17 +62,17 @@ def export_checkpoint(
 
     artifacts: dict[str, Path] = {}
     if options.onnx:
+        # Operator "|=" adds the returned entries to the artifacts dictionary
         artifacts |= export_onnx_models(
             model, sample_input, calibration_inputs, run_dir, options.onnx_opset
         )
     if options.tflite:
         artifacts |= export_tflite_models(model, sample_input, calibration_inputs, run_dir)
 
-    maes = (
-        evaluate_tflite_models(artifacts, checkpoint, input_shape)
-        if options.tflite and options.evaluate
-        else {}
-    )
+    maes: dict[Path, float] = {}
+    if options.tflite and options.evaluate:
+        maes = evaluate_tflite_models(artifacts, checkpoint, input_shape)
+
     record_export(run_dir, name.as_posix(), checkpoint, list(artifacts.values()), maes)
     return artifacts
 
@@ -88,8 +81,8 @@ def checkpoint_name(checkpoint_path: Path) -> Path:
     """Name of the output folder: the checkpoint's path inside the checkpoint dir, without ``.pt``.
 
     ``checkpoints/mobilenet/relu.pt`` becomes ``mobilenet/relu``. The registry name is not
-    used on purpose: variants of one architecture share it and
-    would overwrite each other. Checkpoints outside the checkpoint dir use their file name.
+    used on purpose: variants of one architecture share it and would overwrite each other.
+    Checkpoints outside the checkpoint dir use their file name.
     """
     try:
         return checkpoint_path.resolve().relative_to(cfg.CHECKPOINT_DIR).with_suffix("")
@@ -106,11 +99,11 @@ def export_onnx_models(
 ) -> dict[str, Path]:
     """Export the FP32 ONNX model and its statically quantized INT8 QDQ version."""
     fp32_path = export_onnx(
-        model, sample_input, _artifact_path(run_dir, FP32, ".onnx"), opset_version
+        model, sample_input, _artifact_path(run_dir, cfg.FP32_DIR, ".onnx"), opset_version
     )
     _print_saved("ONNX FP32", fp32_path)
     int8_path = quantize_onnx_int8_qdq(
-        fp32_path, _artifact_path(run_dir, INT8_QDQ, ".onnx"), calibration_inputs
+        fp32_path, _artifact_path(run_dir, cfg.INT8_QDQ_DIR, ".onnx"), calibration_inputs
     )
     _print_saved("ONNX INT8 QDQ", int8_path)
     return {"onnx_fp32": fp32_path, "onnx_int8_qdq": int8_path}
@@ -124,12 +117,12 @@ def export_tflite_models(
 ) -> dict[str, Path]:
     """Convert the model to FP32 TFLite, check it against PyTorch, then quantize to full INT8."""
     fp32_path, edge_model = export_tflite(
-        model, sample_input, _artifact_path(run_dir, FP32, ".tflite")
+        model, sample_input, _artifact_path(run_dir, cfg.FP32_DIR, ".tflite")
     )
     _print_saved("TFLite FP32", fp32_path)
     _check_tflite_matches_pytorch(model, edge_model, sample_input)
     int8_path = quantize_tflite_full_int8(
-        fp32_path, _artifact_path(run_dir, INT8_FULL, ".tflite"), calibration_inputs
+        fp32_path, _artifact_path(run_dir, cfg.INT8_FULL_DIR, ".tflite"), calibration_inputs
     )
     _print_saved("TFLite INT8 full", int8_path)
     return {"tflite_fp32": fp32_path, "tflite_int8_full": int8_path}
@@ -168,9 +161,9 @@ def export_onnx(
         dynamo=False,
         export_params=True,
         opset_version=opset_version,
-        input_names=[ONNX_INPUT_NAME],
-        output_names=[ONNX_OUTPUT_NAME],
-        dynamic_axes={ONNX_INPUT_NAME: {0: "batch"}, ONNX_OUTPUT_NAME: {0: "batch"}},
+        input_names=[cfg.ONNX_INPUT_NAME],
+        output_names=[cfg.ONNX_OUTPUT_NAME],
+        dynamic_axes={cfg.ONNX_INPUT_NAME: {0: "batch"}, cfg.ONNX_OUTPUT_NAME: {0: "batch"}},
         external_data=False,
     )
     return output_path

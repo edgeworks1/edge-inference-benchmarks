@@ -31,9 +31,13 @@ def load_training_set() -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_eval_set(feature_names: list[str], target: str) -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(features, targets)`` of the complete evaluation set."""
+    """Return ``(features, targets)`` of the complete evaluation set.
+
+    Takes the columns as parameters: export evaluates a checkpoint with the features it was
+    trained on (stored in the checkpoint), which may differ from the current config.
+    """
     features = load_features(cfg.EVAL_DATA_PATH, feature_names)
-    targets = load_targets(cfg.EVAL_DATA_PATH, target)
+    targets = load_targets(cfg.EVAL_DATA_PATH, target).astype(np.float32)
     return features, targets
 
 

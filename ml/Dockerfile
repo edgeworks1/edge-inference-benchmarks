@@ -2,10 +2,8 @@
 # Global ARG before the first FROM; every stage that needs it re-declares `ARG TORCH_VARIANT`.
 ARG TORCH_VARIANT=cpu
 
-# =============================================================================
 # Stage "base": Python + uv + all dependencies from uv.lock
 # Shared foundation of runtime (pipeline, CI) and dev (dev container).
-# =============================================================================
 FROM python:3.11-slim-trixie AS base
 
 # uv as a single binary from its official image (same version as used locally)
@@ -41,9 +39,7 @@ ARG GID=1000
 # --shell /bin/bash: the Debian default /bin/sh (dash) has no history and ignores .bashrc
 RUN groupadd --gid ${GID} app && useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash app
 
-# =============================================================================
 # Stage "runtime": the finished program (pipeline, CI, `docker compose run ml / ml-gpu`)
-# =============================================================================
 FROM base AS runtime
 
 ARG TORCH_VARIANT
@@ -61,11 +57,9 @@ USER app
 ENTRYPOINT ["edge-ib"]
 CMD ["--help"]
 
-# =============================================================================
 # Stage "dev": working environment of the VS Code dev container
 # The repo is mounted at /workspace at runtime, NOT at /app, so the venv from base
 # (/app/.venv) stays untouched and is reused.
-# =============================================================================
 FROM base AS dev
 ARG TORCH_VARIANT
 

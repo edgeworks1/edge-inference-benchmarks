@@ -14,9 +14,7 @@ from typing import Any
 import numpy as np
 
 
-# ============================================================
 # TFLite: full INT8
-# ============================================================
 def quantize_tflite_full_int8(
     fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray
 ) -> Path:
@@ -132,9 +130,7 @@ def _write_with_int8_io(model_bytes: bytes, output_path: Path) -> None:
         output_path.write_bytes(int8_io_path.read_bytes())
 
 
-# ============================================================
 # ONNX: INT8 QDQ
-# ============================================================
 def quantize_onnx_int8_qdq(
     fp32_path: Path, output_path: Path, calibration_inputs: np.ndarray
 ) -> Path:
@@ -185,9 +181,7 @@ def _onnx_input_name(model_path: Path) -> str:
     return inputs[0].name
 
 
-# ============================================================
 # Shared
-# ============================================================
 def _check_calibration_inputs(calibration_inputs: np.ndarray) -> None:
     """Reject empty or non-finite calibration data: it would silently produce broken scales."""
     if len(calibration_inputs) == 0 or not np.isfinite(calibration_inputs).all():

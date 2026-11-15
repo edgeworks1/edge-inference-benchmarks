@@ -8,12 +8,10 @@ import os
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 # Set before importing torch: cuBLAS reads its workspace setting when CUDA initializes and
-# needs it for deterministic matrix multiplications on the GPU. PYTHONHASHSEED only affects
-# Python processes started from here on (e.g. data loader workers).
-os.environ["PYTHONHASHSEED"] = "42"
+# needs it for deterministic matrix multiplications on the GPU. PYTHONHASHSEED is set in
+# set_seed() from cfg.SEED.
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 import numpy as np
@@ -38,25 +36,20 @@ class TrainingResult:
     predictions: np.ndarray
 
 
-def train(
-    model_name: str,
-    checkpoint_path: Path,
-    model_kwargs: dict[str, Any] | None = None,
-) -> TrainingResult:
+def train(model_name: str, checkpoint_path: Path) -> TrainingResult:
     """Build the registered model ``model_name``, train and evaluate it, save a checkpoint."""
-    model_kwargs = model_kwargs or {}
     set_seed(cfg.SEED)  # before build_model(): makes the weight initialization deterministic
-    model = build_model(model_name, model_kwargs)
+    model = build_model(model_name)
 
     result = fit_and_evaluate(model)
-    save_checkpoint(checkpoint_path, result.model, model_name, model_kwargs, result.mae)
+    # Variants are registry entries with preset arguments, so no extra model kwargs are stored
+    save_checkpoint(checkpoint_path, result.model, model_name, {}, result.mae, result.epoch_losses)
     return result
 
 
 def fit_and_evaluate(model: nn.Module) -> TrainingResult:
     """Train ``model`` on the training subset, then compute its MAE on the full eval set."""
-    # Re-seed so that shuffling and dropout do not depend on how many random numbers
-    # the weight initialization of this particular architecture consumed.
+    # Re-seed so that this function is also reproducible on its own
     set_seed(cfg.SEED)
     device = select_device()
 
