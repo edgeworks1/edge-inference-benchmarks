@@ -32,7 +32,7 @@ class ExportOptions:
 
     onnx: bool = True  # FP32 + INT8 QDQ ONNX (NPU and GPU toolchains)
     tflite: bool = True  # FP32 + full INT8 TFLite (TFLite Micro on MCUs)
-    onnx_opset: int = 13  # see export_onnx() for why not newer
+    onnx_opset: int = 14  # see export_onnx() for the choice
     evaluate: bool = True  # MAE of both TFLite models on the full eval set
 
 
@@ -145,14 +145,13 @@ def export_onnx(
     model: nn.Module,
     sample_input: torch.Tensor,
     output_path: Path,
-    opset_version: int = 13,
+    opset_version: int = 14,
 ) -> Path:
     """Export the FP32 model to ONNX (target: STM32N6 NPU via ST Edge AI, Jetson).
 
-    Opset 13 and the legacy TorchScript exporter on purpose: ONNX ``HardSwish`` only exists
-    from opset 14; at opset 13 it is lowered to HardSigmoid + Mul. The ST toolchain used
-    initially rejected ONNX HardSwish on the NPU. Newer ST Edge AI versions list it as
-    supported, so this may be revisited, see docs/onnx_export_stm32n6.md.
+    Opset 14 is the first with ONNX ``HardSwish``, which ST Edge AI maps to the NPU. Legacy
+    exporter (``dynamo=False``): the Dynamo exporter emits Shape/Reshape attributes that ST Edge
+    AI 4.0.1 rejects.
     """
     torch.onnx.export(
         model,

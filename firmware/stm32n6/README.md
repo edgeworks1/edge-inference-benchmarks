@@ -317,8 +317,8 @@ Excerpt from `checker.py` for the MLP:
   Discovery kit's `hyperRAM`. Small and medium models (e.g. the MobileNets in this repo) fit into
   internal memory. If `generate` puts anything into `hyperRAM`, the model does not run on the
   Nucleo and `make generate` stops; it then needs a smaller model or an own memory map (`.mpool`).
-- **ONNX opset:** for the choice between opset 13 and 14 see
-  [docs/onnx_export_stm32n6.md](../../docs/onnx_export_stm32n6.md).
+- **ONNX:** The Dynamo exporter does not work (unsupported `Shape` and
+  `Reshape` attributes), so the export uses `dynamo=False`.
 
 ## Further reading
 

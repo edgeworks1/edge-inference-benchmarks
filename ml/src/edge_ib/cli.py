@@ -68,7 +68,7 @@ def export(
     ] = None,
     onnx: Annotated[bool, typer.Option(help="FP32 + INT8 ONNX.")] = True,
     tflite: Annotated[bool, typer.Option(help="FP32 + full INT8 TFLite.")] = True,
-    onnx_opset: int = 13,
+    onnx_opset: int = 14,
     evaluate: Annotated[
         bool,
         typer.Option(

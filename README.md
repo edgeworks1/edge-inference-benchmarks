@@ -88,17 +88,15 @@ MCU @ 800 MHz, NPU @ 1 GHz; median of 20 inferences. Full INT8 TFLite:
 | `mobilenet/small`       |        0.413 |        0.422 |           329.9 |        1,903,379 |         2,379 |        18.6 |       268.8 |      18.6 |
 | `mobilenet_v3_micro_2d` |        0.413 |        0.422 |           329.9 |        1,903,379 |         2,379 |        18.6 |       268.8 |      18.6 |
 
-ONNX (INT8 QDQ, float input and output). The NPU compiler maps more ONNX operators than TFLite
-ones, see [docs/onnx_export_stm32n6.md](docs/onnx_export_stm32n6.md):
 
 | Checkpoint                | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (stm32n6-onnx) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
 | ------------------------- | -----------: | -----------: | --------------: | --------------------: | ------------: | ----------: | ----------: | --------: |
-| `edge_bench_mlp`        |        1.399 |        1.376 |            25.9 |                79,044 |            99 |         0.4 |        38.4 |       0.4 |
-| `mobilenet`             |        0.506 |        0.554 |          1894.7 |             5,389,305 |         6,737 |        12.1 |      1739.4 |      12.1 |
-| `mobilenet/bad_simd`    |        0.507 |        0.508 |          1880.5 |             5,727,805 |         7,160 |        12.1 |      1803.8 |      12.2 |
-| `mobilenet/relu`        |        0.470 |        0.477 |          1902.4 |             4,784,145 |         5,980 |         7.0 |      1702.8 |       7.0 |
-| `mobilenet/small`       |        0.413 |        0.422 |           329.9 |             1,816,429 |         2,271 |        24.9 |       291.3 |      25.0 |
-| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |           329.9 |             1,816,429 |         2,271 |        24.9 |       291.3 |      25.0 |
+| `edge_bench_mlp`          |        1.399 |        1.376 |            25.9 |                79,088 |            99 |         0.4 |        38.4 |       0.4 |
+| `mobilenet`               |        0.506 |        0.554 |          1894.7 |             4,884,113 |         6,105 |         7.3 |      1712.9 |       7.3 |
+| `mobilenet/bad_simd`      |        0.507 |        0.508 |          1880.5 |             5,186,101 |         6,483 |         7.0 |      1775.9 |       7.1 |
+| `mobilenet/relu`          |        0.470 |        0.477 |          1902.4 |             4,699,029 |         5,874 |         6.2 |      1698.2 |       6.2 |
+| `mobilenet/small`         |        0.413 |        0.422 |           329.9 |             1,285,091 |         1,606 |        10.9 |       249.2 |      11.0 |
+| `mobilenet_v3_micro_2d`   |        0.413 |        0.422 |           329.9 |             1,285,091 |         1,606 |        10.9 |       249.2 |      11.0 |
 
 Cycles = MCU cycles per inference. Arena = activation memory; Flash and RAM cover the model only
 (weights + network code, activations + network state), not the whole app as on the nRF5340.
