@@ -9,6 +9,8 @@ out accuracy.
 Everything runs in Docker. The host only needs Docker (plus J-Link tools for the nRF5340 board).
 The exception is the STM32N6: ST's tools are Windows programs, called from WSL through interop.
 
+Why it is built this way: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Pipeline
 
 ```
@@ -61,15 +63,16 @@ quantization make it noticeably worse than FP32?
 
 One inference, full INT8.
 
-| Checkpoint                | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (nrf5340dk) | Cycles (renode) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
-| ------------------------- | -----------: | -----------: | --------------: | -----------------: | --------------: | ------------: | ----------: | ----------: | --------: |
-| `edge_bench_mlp`        |        1.399 |        1.376 |            25.9 |             61,069 |          46,384 |           477 |         1.2 |       216.2 |     164.8 |
-| `mobilenet`             |        0.506 |        0.554 |          1894.7 |                 – |      16,328,976 |            – |          – |          – |        – |
-| `mobilenet/bad_simd`    |        0.507 |        0.508 |          1880.5 |                 – |      16,656,016 |            – |          – |          – |        – |
-| `mobilenet/relu`        |        0.470 |        0.477 |          1902.4 |                 – |      14,531,440 |            – |          – |          – |        – |
-| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |           329.9 |         19,481,318 |      15,775,824 |       152,197 |        50.4 |       520.2 |     164.8 |
+| Checkpoint              | FP32 MAE [m] | INT8 MAE [m] | Model size [KiB] | Cycles (nrf5340dk) | Cycles (renode) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+| ----------------------- | -----------: | -----------: | ---------------: | -----------------: | --------------: | -----------: | ----------: | ----------: | --------: |
+| `edge_bench_mlp`        |        1.399 |        1.376 |             25.9 |             61,069 |          46,384 |          477 |         1.2 |       216.2 |     164.8 |
+| `mobilenet`             |        0.506 |        0.554 |           1894.7 |                  – |      16,328,976 |            – |           – |           – |         – |
+| `mobilenet/bad_simd`    |        0.507 |        0.508 |           1880.5 |                  – |      16,656,016 |            – |           – |           – |         – |
+| `mobilenet/relu`        |        0.470 |        0.477 |           1902.4 |                  – |      14,531,440 |            – |           – |           – |         – |
+| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |            329.9 |         19,481,318 |      15,775,824 |      152,197 |        50.4 |       520.2 |     164.8 |
 
 `–` = does not fit into the 1 MB flash of the nRF5340 (runs in Renode only: `make -C ml table TARGET=renode`).
+Model size = the INT8 `.tflite` file that ends up in flash.
 Arena = tensor memory TFLite Micro actually needs; Flash and RAM = whole firmware (Zephyr + TFLM + model).
 Renode is not cycle-accurate (the board needs 24–32 % more cycles here): good for comparing models,
 absolute numbers come from the board.
@@ -78,26 +81,27 @@ absolute numbers come from the board.
 
 MCU @ 800 MHz, NPU @ 1 GHz; median of 20 inferences. Full INT8 TFLite:
 
-| Checkpoint                | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (stm32n6) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
-| ------------------------- | -----------: | -----------: | --------------: | ---------------: | ------------: | ----------: | ----------: | --------: |
-| `edge_bench_mlp`        |        1.399 |        1.376 |            25.9 |           79,056 |            99 |         0.4 |        38.4 |       0.4 |
-| `mobilenet`             |        0.506 |        0.554 |          1894.7 |        5,412,545 |         6,766 |        11.2 |      1707.5 |      11.3 |
-| `mobilenet/bad_simd`    |        0.507 |        0.508 |          1880.5 |        5,748,717 |         7,186 |        11.2 |      1772.1 |      11.3 |
-| `mobilenet/relu`        |        0.470 |        0.477 |          1902.4 |        5,292,689 |         6,616 |        11.2 |      1696.3 |      11.3 |
-| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |           329.9 |        1,903,379 |         2,379 |        18.6 |       268.8 |      18.6 |
+| Checkpoint              | FP32 MAE [m] | INT8 MAE [m] | Cycles (stm32n6) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+| ----------------------- | -----------: | -----------: | ---------------: | -----------: | ----------: | ----------: | --------: |
+| `edge_bench_mlp`        |        1.399 |        1.376 |           79,056 |           99 |         0.4 |        38.4 |       0.4 |
+| `mobilenet`             |        0.506 |        0.554 |        5,412,545 |        6,766 |        11.2 |      1707.5 |      11.3 |
+| `mobilenet/bad_simd`    |        0.507 |        0.508 |        5,748,717 |        7,186 |        11.2 |      1772.1 |      11.3 |
+| `mobilenet/relu`        |        0.470 |        0.477 |        5,292,689 |        6,616 |        11.2 |      1696.3 |      11.3 |
+| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |        1,903,379 |        2,379 |        18.6 |       268.8 |      18.6 |
 
+Same models as INT8 QDQ ONNX (`FORMAT=onnx`):
 
-| Checkpoint                | FP32 MAE [m] | INT8 MAE [m] | INT8 size [KiB] | Cycles (stm32n6-onnx) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
-| ------------------------- | -----------: | -----------: | --------------: | --------------------: | ------------: | ----------: | ----------: | --------: |
-| `edge_bench_mlp`          |        1.399 |        1.376 |            25.9 |                79,088 |            99 |         0.4 |        38.4 |       0.4 |
-| `mobilenet`               |        0.506 |        0.554 |          1894.7 |             4,884,113 |         6,105 |         7.3 |      1712.9 |       7.3 |
-| `mobilenet/bad_simd`      |        0.507 |        0.508 |          1880.5 |             5,186,101 |         6,483 |         7.0 |      1775.9 |       7.1 |
-| `mobilenet/relu`          |        0.470 |        0.477 |          1902.4 |             4,699,029 |         5,874 |         6.2 |      1698.2 |       6.2 |
-| `mobilenet_v3_micro_2d`   |        0.413 |        0.422 |           329.9 |             1,285,091 |         1,606 |        10.9 |       249.2 |      11.0 |
+| Checkpoint              | FP32 MAE [m] | INT8 MAE [m] | Cycles (stm32n6-onnx) | Latency [µs] | Arena [KiB] | Flash [KiB] | RAM [KiB] |
+| ----------------------- | -----------: | -----------: | --------------------: | -----------: | ----------: | ----------: | --------: |
+| `edge_bench_mlp`        |        1.399 |        1.376 |                79,088 |           99 |         0.4 |        38.4 |       0.4 |
+| `mobilenet`             |        0.506 |        0.554 |             4,884,113 |        6,105 |         7.3 |      1712.9 |       7.3 |
+| `mobilenet/bad_simd`    |        0.507 |        0.508 |             5,186,101 |        6,483 |         7.0 |      1775.9 |       7.1 |
+| `mobilenet/relu`        |        0.470 |        0.477 |             4,699,029 |        5,874 |         6.2 |      1698.2 |       6.2 |
+| `mobilenet_v3_micro_2d` |        0.413 |        0.422 |             1,285,091 |        1,606 |        10.9 |       249.2 |      11.0 |
 
 Cycles = MCU cycles per inference. Arena = activation memory; Flash and RAM cover the model only
 (weights + network code, activations + network state), not the whole app as on the nRF5340.
-MAE and size columns always refer to the TFLite export. No FP32 rows: the NPU needs INT8.
+MAE columns always refer to the TFLite export. No FP32 rows: the NPU needs INT8.
 
 ## Outputs
 
@@ -139,7 +143,7 @@ firmware/nrf5340/   Zephyr / NCS 2.6.0 app: runs the model, prints per-layer cyc
 firmware/stm32n6/   no own firmware: ST's compiler + validation app, called from WSL via interop
   scripts/          dk.sh: Windows tool calls; run_json.py: profile over the COM port -> run.json
   Makefile          setup, compile, load, measure
-docs/               setup guides and design notes
+docs/               setup guides, ARCHITECTURE.md (concepts and design decisions)
 compose.yaml        all containers: ml, ml-gpu, fw, renode
 ```
 

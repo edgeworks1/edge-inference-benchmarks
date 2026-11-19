@@ -24,6 +24,9 @@ REQUIRED_RUN_KEYS = {"target", "model_sha256", "cycles", "latency_us"}
 MISSING = "–"  # placeholder in the Markdown table
 # Simulator of a device: its cycles are shown next to the device's as a reference
 SIMULATORS = {"nrf5340dk": "renode"}
+# Devices whose Flash/RAM cover the whole firmware: the model size shows the model's share.
+# Elsewhere (STM32N6) Flash/RAM already cover the model only, so the column would repeat them.
+MODEL_SIZE_TARGETS = {"nrf5340dk", "renode"}
 
 
 def sha256(path: Path) -> str:
@@ -136,11 +139,12 @@ def markdown_table(output_root: Path, target: str) -> str:
     For a device with a simulator, the simulator cycles are added as a second column.
     """
     simulator = SIMULATORS.get(target)
+    show_model_size = target in MODEL_SIZE_TARGETS
     columns = [
         "Checkpoint",
         "FP32 MAE [m]",
         "INT8 MAE [m]",
-        "INT8 size [KiB]",
+        *(["Model size [KiB]"] if show_model_size else []),
         f"Cycles ({target})",
         *([f"Cycles ({simulator})"] if simulator else []),
         "Latency [µs]",
@@ -151,13 +155,15 @@ def markdown_table(output_root: Path, target: str) -> str:
     header = [_markdown_row(columns), "|---|" + "--:|" * (len(columns) - 1)]
     all_results = [load(path) for path in output_root.glob(f"**/{RESULTS_FILE}")]
     rows = [
-        _table_row(results, target, simulator)
+        _table_row(results, target, simulator, show_model_size)
         for results in sorted(all_results, key=lambda r: r["checkpoint"])
     ]
     return "\n".join(header + rows)
 
 
-def _table_row(results: dict[str, Any], target: str, simulator: str | None) -> str:
+def _table_row(
+    results: dict[str, Any], target: str, simulator: str | None, show_model_size: bool
+) -> str:
     """Format one checkpoint's results as a Markdown table row."""
     artifacts = results.get("artifacts", {})
     fp32 = artifacts.get(f"{cfg.FP32_DIR}/model.tflite", {})
@@ -169,7 +175,7 @@ def _table_row(results: dict[str, Any], target: str, simulator: str | None) -> s
         f"`{results['checkpoint']}`",
         _format_mae(fp32.get("mae_m")),
         _format_mae(int8.get("mae_m")),
-        _format_kib(int8.get("size_bytes")),
+        *([_format_kib(int8.get("size_bytes"))] if show_model_size else []),
         _format_count(run.get("cycles")),
         *([_format_count(simulator_cycles)] if simulator else []),
         _format_count(run.get("latency_us")),

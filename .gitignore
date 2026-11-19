@@ -40,4 +40,3 @@ uebungen/
 # Local editor and assistant files (kept locally, not published)
 .vscode/
 CLAUDE.md
-docs/ARCHITECTURE.md
